@@ -10,8 +10,9 @@ val keyProps = Properties().apply {
     val f = rootProject.file("keystore.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
+// Trimmed: a secret pasted with a trailing newline or space otherwise fails as a wrong alias/password.
 fun keyValue(env: String, prop: String): String? =
-    System.getenv(env)?.takeIf { it.isNotBlank() } ?: keyProps.getProperty(prop)
+    (System.getenv(env)?.takeIf { it.isNotBlank() } ?: keyProps.getProperty(prop))?.trim()
 
 android {
     namespace = "com.m2011b.coastertracker"
