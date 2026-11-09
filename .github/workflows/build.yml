@@ -1,0 +1,98 @@
+name: Build
+
+# Every push to main: run tests, build a signed APK, attach it to the run.
+# Pushing a tag like v1.5: same, plus a GitHub Release with the APK attached.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Set repo variable SIGNING_CERT_SHA256 after the first signed build so every later
+      # build is checked against it (a different key won't install over the existing app).
+      EXPECTED_CERT_SHA256: ${{ vars.SIGNING_CERT_SHA256 }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore signing key from secrets
+        id: key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "No KEYSTORE_BASE64 secret: building unsigned."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore"
+            echo "APP_KEYSTORE=$RUNNER_TEMP/app.keystore" >> "$GITHUB_ENV"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test
+        run: ./gradlew testDebugUnitTest --no-daemon
+
+      - name: Build release APK
+        env:
+          APP_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          APP_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          APP_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Check signing certificate
+        if: steps.key.outputs.signed == 'true'
+        run: |
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          ACTUAL=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk \
+            | grep -m1 'SHA-256 digest' | awk '{print $NF}')
+          echo "Signing cert: $ACTUAL"
+          if [ -z "$EXPECTED_CERT_SHA256" ]; then
+            echo "::warning::Repo variable SIGNING_CERT_SHA256 is not set. Set it to $ACTUAL to lock the key."
+          elif [ "$ACTUAL" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::APK is signed with the wrong key. It would not install over the existing app."
+            exit 1
+          fi
+
+      - name: Name the APK
+        id: apk
+        run: |
+          VERSION=$(grep -m1 'versionName' app/build.gradle.kts | sed -E 's/.*"(.*)".*/\1/')
+          APP=$(grep -m1 'rootProject.name' settings.gradle.kts | sed -E 's/.*"(.*)".*/\1/')
+          SUFFIX=$([ "${{ steps.key.outputs.signed }}" = "true" ] && echo "" || echo "-UNSIGNED")
+          NAME="$APP-$VERSION$SUFFIX.apk"
+          cp app/build/outputs/apk/release/app-release*.apk "$NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.name }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: app/build/test-out/shots/
+          if-no-files-found: ignore
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v') && steps.key.outputs.signed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.apk.outputs.name }}
+          generate_release_notes: true

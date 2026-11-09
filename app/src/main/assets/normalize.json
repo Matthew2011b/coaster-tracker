@@ -1,0 +1,285 @@
+{
+ "aliases": {
+  "A.R.M. (USA)": "A.R.M.",
+  "Alpine Slide Corp.": "Alpine Slide",
+  "Alpine Slide, LLC": "Alpine Slide",
+  "Arrow Development": "Arrow Dynamics",
+  "Arrow HUSS": "Arrow Dynamics",
+  "Bennett": "Bennett & Salisbury Company",
+  "Built In-House": "In-house",
+  "Self-built": "In-house",
+  "Cavazza Diego": "Diego Cavazza",
+  "Güven Amusement Rides Factory": "Güven",
+  "Güven Lunapark": "Güven",
+  "Hoei Sangyo Co., Ltd.": "Hoei Sangyo",
+  "Henan Beston Rides Co., Ltd": "Beston",
+  "Beston Amusement Equipment": "Beston",
+  "L.A. Thompson Gravity Switchback Railway Company": "L.A. Thompson",
+  "L.A. Thompson Scenic Railway Company": "L.A. Thompson",
+  "LaMarcus A. Thompson": "L.A. Thompson",
+  "LaMarcus Adna Thompson": "L.A. Thompson",
+  "Mack Rides GmbH & Co KG": "Mack Rides",
+  "Maurer AG": "Maurer Rides",
+  "Maurer Shöne": "Maurer Rides",
+  "Maurer Söhne": "Maurer Rides",
+  "Mondial Rides": "Mondial",
+  "National Amusement Devices": "National Amusement Device Company",
+  "Philadelphia Toboggan Coasters, Inc.": "Philadelphia Toboggan Coasters",
+  "Philadelphia Toboggan Company": "Philadelphia Toboggan Coasters",
+  "Philadelphia Toboggan Company, Inc.": "Philadelphia Toboggan Coasters",
+  "Philidelphia Toboggan Coasters": "Philadelphia Toboggan Coasters",
+  "Robles Bouso Atracciones Atracciones": "Robles Bouso Atracciones",
+  "Sansei Yusoki Co., Ltd": "Sansei Technologies",
+  "S&S Sansei Technologies": "S&S Worldwide",
+  "S&S-Sansei Technologies": "S&S Worldwide",
+  "S&S Arrow": "S&S Worldwide",
+  "Sartori Rides": "Sartori",
+  "Senyo Kogyo Co., Ltd.": "Senyo Kogyo",
+  "T. M. Harton": "T.M. Harton",
+  "TM Harton Company": "T.M. Harton",
+  "Traver Engineering Company": "Traver Engineering",
+  "Heege Freizeittechnik": "Sunkid Heege",
+  "Inno-Heege": "Sunkid Heege",
+  "Dynamic Structures": "Dynamic Attractions",
+  "Billy Joe Butlin": "Butlin's",
+  "A.R.M": "A.R.M.",
+  "Custom Coasters International": "Custom Coasters International, Inc.",
+  "Intamin Amusement Rides": "Intamin",
+  "Bolliger and Mabillard": "Bolliger & Mabillard",
+  "Rocky Mountain Coasters": "Rocky Mountain Construction",
+  "Togo": "TOGO"
+ },
+ "modelMap": {
+  "Vekoma": {
+   "MK-1200 Tornado": "MK-1200",
+   "Custom MK-1200": "MK-1200",
+   "MK-1200 (Whirlwind)": "MK-1200",
+   "Corkscrew with Bayerncurve": "MK-1200",
+   "Corkscrew with bayerncurve": "MK-1200",
+   "Whirlwind": "MK-1200",
+   "Flying Dutchman": "Flying Coaster",
+   "Flying Dutchman)": "Flying Coaster",
+   "Stingray": "Flying Coaster",
+   "LSM Coaster (Disney)": "LSM Coaster",
+   "LSM Coaster (996m)": "LSM Coaster",
+   "Custom Designed Family Coaster": "Family Coaster",
+   "Custom MK-700": "MK-700",
+   "Custom MK-900": "MK-900"
+  },
+  "Zamperla": {
+   "Custom Powered Coaster": "Powered Coaster",
+   "Family Gravity Coaster": "Family Coaster",
+   "Air Force 5": "Air Force",
+   "Custom Air Force": "Air Force",
+   "Family Thrill Launch Coaster": "Family Thrill Launch"
+  },
+  "SBF Visa Group": {
+   "Spinning Coaster": "Spinning Coasters"
+  },
+  "Intamin": {
+   "Half Pipe Coaster": "Half Pipe",
+   "Indoor/Family Roller Coaster": "Indoor / Family Roller Coaster",
+   "Wood Coaster": "Wooden Coaster",
+   "Zac Spin": "ZacSpin"
+  },
+  "Mack Rides": {
+   "Wild Maus": "Wilde Maus",
+   "Wild Mouse": "Wilde Maus"
+  },
+  "Zierer": {
+   "Tivoli New": "Tivoli",
+   "Tivoli Small": "Tivoli",
+   "Elevated Seating Coaster": "ESC"
+  },
+  "Pinfari": {
+   "Supersonic": "Zyklon",
+   "Super Train ST40": "Super Train",
+   "FC80": "FC80 Family Coaster",
+   "XP48": "Xpress",
+   "Xpress XP56": "Xpress"
+  },
+  "Schwarzkopf": {
+   "Alpenblitz II": "Alpen Blitz",
+   "Alpen Blitz II": "Alpen Blitz",
+   "Jet Star II": "Jet Star",
+   "Jet Star III": "Jet Star",
+   "Jet Star 2": "Jet Star",
+   "City Jet": "Jet Star",
+   "City Jet / Jet 400": "Jet Star",
+   "Jumbo V": "Jet Star"
+  },
+  "E&F Miler Industries": {
+   "Childrens Coaster": "Children's Coaster"
+  },
+  "S&S Worldwide": {
+   "Launched El Loco": "El Loco"
+  }
+ },
+ "prefixMap": {
+  "Zamperla": [
+   [
+    "^Powered Coaster",
+    "Powered Coaster"
+   ],
+   [
+    "^Twister Coaster",
+    "Twister Coaster"
+   ],
+   [
+    "^Family Coaster",
+    "Family Coaster"
+   ]
+  ],
+  "Zierer": [
+   [
+    "^Tivoli",
+    "Tivoli"
+   ]
+  ],
+  "Pinfari": [
+   [
+    "^(Zyklon|Z\\d|ZL\\d)",
+    "Zyklon"
+   ],
+   [
+    "^Super Dragon",
+    "Super Dragon"
+   ]
+  ],
+  "Mack Rides": [
+   [
+    "^Wil(d|de) Ma?us",
+    "Wilde Maus"
+   ]
+  ],
+  "E&F Miler Industries": [
+   [
+    "^(Family Coaster|\\d|Single Helix|Oval)",
+    "Family Coaster"
+   ],
+   [
+    "^Children'?s Coaster",
+    "Children's Coaster"
+   ]
+  ],
+  "Wisdom Rides": [
+   [
+    "^Dragon Wagon",
+    "Dragon Wagon"
+   ],
+   [
+    "^Miner Mike",
+    "Miner Mike"
+   ]
+  ],
+  "Jinma Rides": [
+   [
+    "^Fruit Worm",
+    "Fruit Worm Coaster"
+   ],
+   [
+    "^Mine Coaster",
+    "Mine Coaster"
+   ],
+   [
+    "^Suspended Roller Coaster",
+    "Suspended Roller Coaster"
+   ],
+   [
+    "^Spinning Coaster",
+    "Spinning Coaster"
+   ]
+  ],
+  "SBF Visa Group": [
+   [
+    "^Double Coaster",
+    "Double Coaster"
+   ]
+  ],
+  "Vekoma": [
+   [
+    "^MK-1200",
+    "MK-1200"
+   ]
+  ]
+ },
+ "ptcCustom": "Philadelphia Toboggan Coasters",
+ "kiddieModels": [
+  [
+   "Wisdom Rides",
+   "*"
+  ],
+  [
+   "E&F Miler Industries",
+   "Family Coaster"
+  ],
+  [
+   "E&F Miler Industries",
+   "Children's Coaster"
+  ],
+  [
+   "Pinfari",
+   "Big Apple"
+  ],
+  [
+   "Pinfari",
+   "Circus Clown"
+  ],
+  [
+   "Pinfari",
+   "Super Dragon"
+  ],
+  [
+   "Pinfari",
+   "Queen Bee AR28"
+  ],
+  [
+   "SBF Visa Group",
+   "Family Coaster"
+  ],
+  [
+   "SBF Visa Group",
+   "Caterpillar Coaster"
+  ],
+  [
+   "SBF Visa Group",
+   "Micro Coaster"
+  ],
+  [
+   "Zamperla",
+   "Family Coaster"
+  ],
+  [
+   "Zamperla",
+   "Powered Coaster"
+  ],
+  [
+   "Zamperla",
+   "Speedy Coaster"
+  ],
+  [
+   "Zamperla",
+   "Mini Mouse"
+  ],
+  [
+   "Allan Herschell Company",
+   "Little Dipper"
+  ],
+  [
+   "Gerstlauer",
+   "Kiddy Racer"
+  ],
+  [
+   "Intamin",
+   "Children's Roller Coaster"
+  ],
+  [
+   "Mack Rides",
+   "Kinder-Achterbahn"
+  ],
+  [
+   "Miler Manufacturing",
+   "*"
+  ]
+ ]
+}
