@@ -22,8 +22,8 @@ android {
         applicationId = "com.m2011b.coastertracker"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.6"
+        versionCode = 7
+        versionName = "0.7"
     }
 
     // Signing. The key is NEVER committed. It comes from (first match wins):
@@ -66,7 +66,6 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.core:core-ktx:1.16.0")
-    implementation("org.osmdroid:osmdroid-android:6.1.20")  // OpenStreetMap tiles, no API key
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.15.1")
     testImplementation("io.github.takahirom.roborazzi:roborazzi:1.46.1")

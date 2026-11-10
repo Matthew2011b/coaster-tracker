@@ -116,7 +116,7 @@ fun SettingsScreen(repo: Repo, theme: ThemeStore, onCustomColors: () -> Unit) {
             SecondaryButton("Export CSV", Modifier.weight(1f)) { exporter.launch("coaster-rides.csv") }
         }
 
-        Text("Coaster data from Coasterpedia contributors, CC BY-SA 4.0.", color = p.muted, fontSize = 12.sp)
+        Text("Coaster data from Coasterpedia contributors, CC BY-SA 4.0. Map from Natural Earth.", color = p.muted, fontSize = 12.sp)
     }
 
     message?.let { (t, b) -> KitDialog(t, onDismiss = { message = null }, confirm = "OK" to { message = null }) { Text(b) } }

@@ -94,9 +94,14 @@ class ScreenshotTest {
 
     @Test fun parksMap() {
         start("map", "parks")
+        Basemap.get(ApplicationProvider.getApplicationContext())  // warm the bundled map
         rule.onNodeWithContentDescription("Map view").performClick()
         rule.onNodeWithContentDescription("List view").assertExists()
+        Thread.sleep(300); rule.waitForIdle()
         shot("21_parks_map")
+        rule.onNodeWithText("Worldwide").performClick()
+        Thread.sleep(200); rule.waitForIdle()
+        shot("22_parks_map_world")
         rule.onNodeWithContentDescription("List view").performClick()
         rule.onNodeWithText("Six Flags Great America").assertExists()
     }

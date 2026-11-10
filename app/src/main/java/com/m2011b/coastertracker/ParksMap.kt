@@ -1,186 +1,212 @@
 package com.m2011b.coastertracker
 
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.Typeface
-import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import com.m2011b.coastertracker.data.ParkStat
+import com.m2011b.kit.theme.LocalKitFonts
 import com.m2011b.kit.theme.LocalPalette
 import com.m2011b.kit.ui.BoxShape
-import org.osmdroid.config.Configuration
-import org.osmdroid.util.BoundingBox
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.CopyrightOverlay
-import org.osmdroid.views.overlay.Marker
-import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlin.math.hypot
+import kotlin.math.ln
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.pow
 
-/** One-time osmdroid setup: identify the app to the tile servers and keep the tile cache in app storage. */
-private fun setupOsm(ctx: Context) {
-    val c = Configuration.getInstance()
-    if (c.userAgentValue == ctx.packageName) return
-    c.userAgentValue = ctx.packageName
-    c.osmdroidBasePath = File(ctx.filesDir, "osmdroid")
-    c.osmdroidTileCache = File(ctx.cacheDir, "osm-tiles")
-}
-
-/** The four colors a recolored tile uses (ARGB ints). */
-private data class MapColors(val land: Int, val water: Int, val road: Int, val ink: Int)
+private const val MIN_ZOOM = 2f
+private const val MAX_ZOOM = 11f
 
 /**
- * Standard OSM tiles repainted into a plain map: land, water, interstates, and towns plus state
- * borders. Forests, farmland, parks and minor roads all become land. Each pixel is classified from
- * OSM Carto's own colors: water is light blue, motorways are the only pink with more blue than green,
- * state borders are a faint purple, and label text is dark (blended so letters stay smooth).
- * Plain no-key tile styles aren't available (CARTO's now need a key), so the app does it itself.
- * Keeps the name "Mapnik" so the raw tile cache is shared across themes.
- */
-private class PlainTiles(@Volatile var colors: MapColors) : org.osmdroid.tileprovider.tilesource.XYTileSource(
-    "Mapnik", 0, 19, 256, ".png",
-    arrayOf("https://a.tile.openstreetmap.org/", "https://b.tile.openstreetmap.org/", "https://c.tile.openstreetmap.org/"),
-    "© OpenStreetMap contributors",
-) {
-    override fun getDrawable(aFileInputStream: java.io.InputStream?): android.graphics.drawable.Drawable? = recolor(super.getDrawable(aFileInputStream))
-    override fun getDrawable(aFilePath: String?): android.graphics.drawable.Drawable? = recolor(super.getDrawable(aFilePath))
-
-    private fun recolor(d: android.graphics.drawable.Drawable?): android.graphics.drawable.Drawable? {
-        val src = (d as? BitmapDrawable)?.bitmap ?: return d
-        val bmp = if (src.isMutable && src.config == Bitmap.Config.ARGB_8888) src else src.copy(Bitmap.Config.ARGB_8888, true)
-        val w = bmp.width; val h = bmp.height
-        val px = IntArray(w * h)
-        bmp.getPixels(px, 0, w, 0, 0, w, h)
-        val c = colors
-        for (i in px.indices) px[i] = classify(px[i], c)
-        bmp.setPixels(px, 0, w, 0, 0, w, h)
-        return org.osmdroid.tileprovider.ReusableBitmapDrawable(bmp)
-    }
-
-    private fun classify(p: Int, c: MapColors): Int {
-        val r = (p shr 16) and 0xFF; val g = (p shr 8) and 0xFF; val b = p and 0xFF
-        if (b - r > 28 && g - r > 18) return c.water
-        val sum = r + g + b
-        var base = if (r - g > 50 && b > g && r > 180) c.road else c.land
-        if (r - g >= 8 && b - g >= 4 && r - g < 40 && sum < 665) base = c.ink  // state border
-        val t = ((450 - sum) / 220f).coerceIn(0f, 1f)                         // label text
-        return if (t > 0f) blend(base, c.ink, t) else base
-    }
-
-    private fun blend(a: Int, b: Int, t: Float): Int {
-        fun ch(s: Int) = (((a shr s) and 0xFF) * (1 - t) + ((b shr s) and 0xFF) * t).toInt()
-        return (0xFF shl 24) or (ch(16) shl 16) or (ch(8) shl 8) or ch(0)
-    }
-}
-
-/** Round pin with a number, drawn once per (color, number) and cached. */
-private class PinFactory(private val ctx: Context) {
-    private val cache = HashMap<Pair<Int, String>, BitmapDrawable>()
-    fun get(fill: Int, ink: Int, text: String, small: Boolean): BitmapDrawable = cache.getOrPut(fill to "$text|$small") {
-        val d = ctx.resources.displayMetrics.density
-        val size = ((if (small) 14 else 26) * d).toInt()
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val cv = Canvas(bmp)
-        val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        p.color = android.graphics.Color.WHITE
-        cv.drawCircle(size / 2f, size / 2f, size / 2f, p)
-        p.color = fill
-        cv.drawCircle(size / 2f, size / 2f, size / 2f - 1.5f * d, p)
-        if (text.isNotEmpty()) {
-            p.color = ink
-            p.textSize = (if (text.length > 2) 9.5f else 11.5f) * d
-            p.typeface = Typeface.DEFAULT_BOLD
-            p.textAlign = Paint.Align.CENTER
-            cv.drawText(text, size / 2f, size / 2f - (p.descent() + p.ascent()) / 2, p)
-        }
-        BitmapDrawable(ctx.resources, bmp)
-    }
-}
-
-/**
- * Parks on an OpenStreetMap map. Pins show [byModels] ? new models : unridden coasters; parks you've
- * finished show as small dots in the ridden color. Tapping a pin shows a card; tapping the card opens the park.
+ * Parks on the bundled map: land, water, interstates, state and country borders and town names,
+ * drawn from assets/basemap.bin (Natural Earth) in theme colors, so it works offline with no
+ * outside servers. Pins show new models or unridden coasters (per [byModels]); finished parks are
+ * small dots in the ridden color. Pinch or double-tap to zoom, drag to pan, tap a pin for its card.
  */
 @Composable
 fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPark: (Long) -> Unit, modifier: Modifier = Modifier) {
     val p = LocalPalette.current
     val ctx = LocalContext.current
     val here = LocalHere.current
-    val pins = remember(ctx) { PinFactory(ctx) }
-    var picked by remember { mutableStateOf<ParkStat?>(null) }
-    var framed by remember { mutableStateOf(false) }
-    val accent = p.accent.toArgb(); val btnInk = p.btnInk.toArgb(); val newInk = p[AppTokens.NewInk].toArgb()
-    val ok = p.ok.toArgb()
-    val colors = MapColors(p.bg.toArgb(), p[AppTokens.MapWater].toArgb(), p[AppTokens.MapRoad].toArgb(), p[AppTokens.MapInk].toArgb())
-    val tiles = remember { PlainTiles(colors) }
+    val density = LocalDensity.current.density
+    val measurer = rememberTextMeasurer()
+    val sans = LocalKitFonts.current.sans
+    val map by produceState<Basemap?>(null) { value = withContext(Dispatchers.Default) { Basemap.get(ctx) } }
+
+    // View: world point at the center and zoom (256 dp tiles at zoom 0), saved across visits.
+    var cx by rememberSaveable { mutableDoubleStateOf(Double.NaN) }
+    var cy by rememberSaveable { mutableDoubleStateOf(Double.NaN) }
+    var zoom by rememberSaveable { mutableFloatStateOf(7f) }
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    var pickedId by rememberSaveable { mutableStateOf<Long?>(null) }
+
+    data class Pin(val stat: ParkStat, val x: Double, val y: Double, val n: Int, val done: Boolean)
+    val pins = remember(rows, done, byModels) {
+        val open = rows.mapNotNull { r ->
+            val la = r.park.lat ?: return@mapNotNull null; val lo = r.park.lon ?: return@mapNotNull null
+            Pin(r, Basemap.x(lo), Basemap.y(la), if (byModels) r.newModels else r.unridden, false)
+        }.sortedBy { it.n }  // bigger numbers drawn on top
+        done.mapNotNull { r ->
+            val la = r.park.lat ?: return@mapNotNull null; val lo = r.park.lon ?: return@mapNotNull null
+            Pin(r, Basemap.x(lo), Basemap.y(la), 0, true)
+        } + open
+    }
+    val picked = pins.firstOrNull { it.stat.park.id == pickedId }?.stat
+
+    // First view: around you, or fit all the pins.
+    LaunchedEffect(size, pins.isNotEmpty()) {
+        if (!cx.isNaN() || size == IntSize.Zero) return@LaunchedEffect
+        val h = here
+        if (h != null) { cx = Basemap.x(h.second); cy = Basemap.y(h.first); zoom = 7f; return@LaunchedEffect }
+        val open = pins.filter { !it.done }.ifEmpty { pins }
+        if (open.isEmpty()) { cx = Basemap.x(-96.0); cy = Basemap.y(39.0); zoom = 3.5f; return@LaunchedEffect }
+        val l = open.minOf { it.x }; val r = open.maxOf { it.x }; val t = open.minOf { it.y }; val b = open.maxOf { it.y }
+        cx = (l + r) / 2; cy = (t + b) / 2
+        val fit = min(size.width * 0.85 / max(r - l, 1.0), size.height * 0.85 / max(b - t, 1.0))  // px per world unit
+        zoom = log2(fit * Basemap.WORLD / (256 * density)).toFloat().coerceIn(MIN_ZOOM, 9f)
+    }
+
+    fun scale() = 256.0 * density * 2.0.pow(zoom.toDouble()) / Basemap.WORLD  // px per world unit
+    fun toScreen(x: Double, y: Double): Offset {
+        val s = scale(); return Offset(((x - cx) * s + size.width / 2).toFloat(), ((y - cy) * s + size.height / 2).toFloat())
+    }
+
+    val land = p.bg; val water = p[AppTokens.MapWater]; val road = p[AppTokens.MapRoad]; val ink = p[AppTokens.MapInk]
+    val pinNew = p[AppTokens.NewInk]; val pinOther = p.accent; val okC = p.ok
+    val labelStyle = TextStyle(color = ink, fontSize = 11.sp, fontFamily = sans)
+    val pinStyle = TextStyle(color = p.btnInk, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = sans)
 
     Box(modifier.clip(BoxShape).border(1.dp, p.line, BoxShape)) {
-        AndroidView(
-            factory = { c ->
-                setupOsm(c)
-                MapView(c).apply {
-                    setTileSource(tiles)
-                    setMultiTouchControls(true)
-                    zoomController.setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER)
-                    minZoomLevel = 3.0
-                    isTilesScaledToDpi = true
-                }
-            },
-            modifier = Modifier.fillMaxSize(),
-            update = { map ->
-                if (tiles.colors != colors) { tiles.colors = colors; map.tileProvider.clearTileCache() }  // theme changed
-                map.overlayManager.tilesOverlay.loadingBackgroundColor = colors.land
-                map.overlayManager.tilesOverlay.loadingLineColor = colors.land
-                map.overlays.clear()
-                done.forEach { r ->
-                    val lat = r.park.lat ?: return@forEach; val lon = r.park.lon ?: return@forEach
-                    map.overlays.add(Marker(map).apply {
-                        position = GeoPoint(lat, lon); setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                        icon = pins.get(ok, btnInk, "", small = true); title = r.park.name
-                        setOnMarkerClickListener { _, _ -> picked = r; true }
-                    })
-                }
-                rows.sortedBy { if (byModels) it.newModels else it.unridden }.forEach { r ->  // bigger numbers drawn on top
-                    val lat = r.park.lat ?: return@forEach; val lon = r.park.lon ?: return@forEach
-                    val n = if (byModels) r.newModels else r.unridden
-                    val fill = if (byModels && n == 0) android.graphics.Color.GRAY else if (byModels) newInk else accent
-                    map.overlays.add(Marker(map).apply {
-                        position = GeoPoint(lat, lon); setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                        icon = pins.get(fill, android.graphics.Color.WHITE, "$n", small = false); title = r.park.name
-                        setOnMarkerClickListener { _, _ -> picked = r; true }
-                    })
-                }
-                map.overlays.add(CopyrightOverlay(map.context))
-                if (!framed) {
-                    framed = true
-                    val h = here
-                    if (h != null) { map.controller.setZoom(7.0); map.controller.setCenter(GeoPoint(h.first, h.second)) }
-                    else {
-                        val pts = rows.mapNotNull { r -> r.park.lat?.let { la -> r.park.lon?.let { lo -> GeoPoint(la, lo) } } }
-                        if (pts.size > 1) map.post { map.zoomToBoundingBox(BoundingBox.fromGeoPoints(pts), false, 40) }
-                        else { map.controller.setZoom(4.0); map.controller.setCenter(GeoPoint(39.5, -96.0)) }
+        Canvas(
+            Modifier.fillMaxSize().clipToBounds().onSizeChanged { size = it }
+                .pointerInput(Unit) {
+                    detectTransformGestures { centroid, pan, gestureZoom, _ ->
+                        if (cx.isNaN()) return@detectTransformGestures
+                        val s0 = scale()
+                        // world point under the fingers stays put while zooming
+                        val wx = cx + (centroid.x - size.width / 2) / s0
+                        val wy = cy + (centroid.y - size.height / 2) / s0
+                        zoom = (zoom + log2(gestureZoom.toDouble()).toFloat()).coerceIn(MIN_ZOOM, MAX_ZOOM)
+                        val s1 = scale()
+                        cx = wx - (centroid.x - size.width / 2) / s1 - pan.x / s1
+                        cy = (wy - (centroid.y - size.height / 2) / s1 - pan.y / s1).coerceIn(0.0, Basemap.WORLD)
                     }
                 }
-                map.invalidate()
-            },
-            onRelease = { it.onDetach() },
-        )
+                .pointerInput(pins) {
+                    detectTapGestures(
+                        onDoubleTap = { at ->
+                            val s0 = scale()
+                            val wx = cx + (at.x - size.width / 2) / s0; val wy = cy + (at.y - size.height / 2) / s0
+                            zoom = (zoom + 1f).coerceIn(MIN_ZOOM, MAX_ZOOM)
+                            val s1 = scale()
+                            cx = wx - (at.x - size.width / 2) / s1; cy = wy - (at.y - size.height / 2) / s1
+                        },
+                        onTap = { at ->
+                            val hit = pins.asReversed().minByOrNull { (toScreen(it.x, it.y) - at).getDistance() }
+                            pickedId = hit?.takeIf { (toScreen(it.x, it.y) - at).getDistance() < 24 * density }?.stat?.park?.id
+                        },
+                    )
+                },
+        ) {
+            drawRect(water)
+            val m = map ?: return@Canvas
+            if (cx.isNaN()) return@Canvas
+            val s = scale().toFloat()
+            val layers = if (zoom < 6f) m.coarse else m.fine
+            val view = Rect(
+                (cx - this.size.width / 2 / s).toFloat(), (cy - this.size.height / 2 / s).toFloat(),
+                (cx + this.size.width / 2 / s).toFloat(), (cy + this.size.height / 2 / s).toFloat(),
+            )
+            withTransform({
+                translate(this@Canvas.size.width / 2, this@Canvas.size.height / 2)
+                scale(s, s, Offset.Zero)
+                translate(-cx.toFloat(), -cy.toFloat())
+            }) {
+                fun DrawScope.fill(list: List<Basemap.Feature>, c: Color) = list.forEach { f ->
+                    if (zoom >= f.minZoom && f.right >= view.left && f.left <= view.right && f.bottom >= view.top && f.top <= view.bottom)
+                        drawPath(f.path, c, style = Fill)
+                }
+                fun DrawScope.line(list: List<Basemap.Feature>, c: Color, widthDp: Float, minZoomBias: Float = 0f) {
+                    val st = Stroke(widthDp * density / s, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    list.forEach { f ->
+                        if (zoom + minZoomBias >= f.minZoom && f.right >= view.left && f.left <= view.right && f.bottom >= view.top && f.top <= view.bottom)
+                            drawPath(f.path, c, style = st)
+                    }
+                }
+                fill(layers.land, land)
+                fill(layers.lakes, water)
+                line(layers.rivers, water, 1.2f)
+                line(layers.roads, road, if (zoom >= 8) 1.8f else 1.2f, 1f)
+                line(layers.states, ink, 0.8f)
+                line(layers.countries, ink, 1.4f)
+            }
+
+            // Town names, biggest first, skipping any that would overlap each other or a pin.
+            val pinR = 13 * density
+            val placed = ArrayList<Rect>()
+            for (pin in pins) if (!pin.done) toScreen(pin.x, pin.y).let { placed += Rect(it.x - pinR, it.y - pinR, it.x + pinR, it.y + pinR) }
+            val pinCount = placed.size
+            val dot = 2.2f * density
+            for (pl in m.places) {
+                if (zoom + 1.2f < pl.minZoom) continue
+                val at = toScreen(pl.x.toDouble(), pl.y.toDouble())
+                if (at.x < -50 || at.y < -20 || at.x > this.size.width + 10 || at.y > this.size.height + 20) continue
+                val layout = measurer.measure(pl.name, labelStyle)
+                val box = Rect(at.x - dot, at.y - layout.size.height / 2f, at.x + dot * 2 + layout.size.width, at.y + layout.size.height / 2f)
+                if (placed.any { it.overlaps(box) }) continue
+                placed += box
+                drawCircle(ink, dot, at)
+                drawText(layout, topLeft = Offset(at.x + dot * 2, at.y - layout.size.height / 2f))
+                if (placed.size - pinCount > 70) break
+            }
+
+            // Pins on top.
+            val r = 13 * density; val small = 6 * density; val ring = 1.5f * density
+            for (pin in pins) {
+                val at = toScreen(pin.x, pin.y)
+                if (at.x < -r || at.y < -r || at.x > this.size.width + r || at.y > this.size.height + r) continue
+                if (pin.done) {
+                    drawCircle(p.surface, small, at); drawCircle(okC, small - ring, at)
+                    continue
+                }
+                drawCircle(p.surface, r, at)
+                drawCircle(if (!byModels) pinOther else if (pin.n == 0) p.muted else pinNew, r - ring, at)
+                val t = measurer.measure("${pin.n}", pinStyle)
+                drawText(t, topLeft = Offset(at.x - t.size.width / 2f, at.y - t.size.height / 2f))
+            }
+        }
 
         picked?.let { r ->
             Row(
@@ -198,3 +224,5 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
         }
     }
 }
+
+private fun log2(v: Double) = ln(v) / ln(2.0)
