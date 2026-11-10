@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -184,8 +185,9 @@ fun SecondaryButton(text: String, modifier: Modifier = Modifier, enabled: Boolea
     OutlinedButton(
         onClick = onClick, enabled = enabled, shape = BoxShape,
         border = androidx.compose.foundation.BorderStroke(2.dp, p.line),
+        contentPadding = PaddingValues(horizontal = 8.dp),
         modifier = modifier.fillMaxWidth().height(52.dp),
-    ) { Text(text, color = p.ink, fontWeight = FontWeight.SemiBold) }
+    ) { Text(text, color = p.ink, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
 }
 
 /** Flat surface card with a 1dp border. */
@@ -217,7 +219,7 @@ fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifie
             Box(
                 Modifier.weight(1f).clip(RoundedCornerShape(7.dp))
                     .background(if (on) p.accent else Color.Transparent)
-                    .clickable { onSelect(i) }.padding(vertical = 10.dp),
+                    .selectable(selected = on, role = androidx.compose.ui.semantics.Role.Tab) { onSelect(i) }.padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center,
             ) { Text(o, color = if (on) p.btnInk else p.ink, fontWeight = FontWeight.SemiBold) }
         }

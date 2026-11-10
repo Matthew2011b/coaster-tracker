@@ -50,9 +50,10 @@ private const val BACK_ICON = "M15 5l-7 7 7 7"
 
 /**
  * The standard app frame: a compact top bar with a centered title and an accent rule under it,
- * and a bottom bar with one icon per [items] entry. Pass [subTitle] and [onBack] while a screen is
- * open on top of a tab: the bar shows that title and a back arrow. System back closes the open
- * screen first, then returns to the first tab. [content] draws the screen for the current tab id.
+ * and a bottom bar with one icon per [items] entry. [subTitle] replaces the tab title while a
+ * screen is open on top of a tab, and [showBackArrow] puts a back arrow in the bar. [onBack]
+ * handles both the arrow and system back; pass null to let system back leave the app.
+ * The app owns its back history and draws the current page in [content].
  */
 @Composable
 fun KitAppShell(
@@ -60,16 +61,15 @@ fun KitAppShell(
     current: String,
     onNavigate: (String) -> Unit,
     subTitle: String? = null,
+    showBackArrow: Boolean = false,
     onBack: (() -> Unit)? = null,
-    content: @Composable (id: String) -> Unit,
+    content: @Composable () -> Unit,
 ) {
     val p = LocalPalette.current
     val icons = remember(items) { items.associate { it.id to outlineIcon(it.id, it.icon) } }
     val back = remember { outlineIcon("back", BACK_ICON) }
 
-    BackHandler(enabled = onBack != null || current != items.first().id) {
-        if (onBack != null) onBack() else onNavigate(items.first().id)
-    }
+    BackHandler(enabled = onBack != null) { onBack?.invoke() }
 
     Scaffold(
         containerColor = p.bg,
@@ -80,7 +80,7 @@ fun KitAppShell(
                     val title = subTitle ?: items.firstOrNull { it.id == current }?.title.orEmpty()
                     Text(title, color = p.headerInk, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
                         overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 56.dp))
-                    if (onBack != null) {
+                    if (showBackArrow && onBack != null) {
                         Box(
                             Modifier.align(Alignment.CenterStart).padding(start = 4.dp).size(48.dp).clip(RoundedCornerShape(24.dp))
                                 .clickable(onClick = onBack).semantics { contentDescription = "Back" },
@@ -119,6 +119,6 @@ fun KitAppShell(
             }
         },
     ) { pad ->
-        Box(Modifier.padding(pad).consumeWindowInsets(pad).fillMaxSize().imePadding()) { content(current) }
+        Box(Modifier.padding(pad).consumeWindowInsets(pad).fillMaxSize().imePadding()) { content() }
     }
 }

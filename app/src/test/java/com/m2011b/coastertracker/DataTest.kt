@@ -176,4 +176,15 @@ class DataTest {
         assertEquals("Mason, OH", db.loadParks().single { it.id == 716L }.place)
         assertEquals(2, db.readableDatabase.version)
     }
+
+    @Test fun usOnlyDropsOtherCountriesButKeepsLoggedRides() {
+        val us = c("operating"); val de = c("operating").copy(country = "DE")
+        val f = Filters(usOnly = true)
+        assertTrue(Rules.counts(us, false, f, today, ModelSet.EMPTY))
+        assertFalse(Rules.counts(de, false, f, today, ModelSet.EMPTY))
+        assertTrue(Rules.counts(de, true, f, today, ModelSet.EMPTY))
+        val r = repo("usonly")
+        r.updateFilters(r.filters.copy(usOnly = true))
+        assertTrue(r.stats.parkStats(usOnly = false).all { it.park.country == "US" })
+    }
 }

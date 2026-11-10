@@ -12,7 +12,7 @@ class Repo(context: Context, dbName: String = "coasters.db", prefsName: String =
     private val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
     val norm = Normalizer(context.assets.open("normalize.json").bufferedReader().use { it.readText() })
 
-    var filters by mutableStateOf(Filters(prefs.getBoolean("inc_defunct", false), prefs.getBoolean("inc_kiddie", false)))
+    var filters by mutableStateOf(Filters(prefs.getBoolean("inc_defunct", false), prefs.getBoolean("inc_kiddie", false), prefs.getBoolean("us_only", false)))
         private set
     var apiKey by mutableStateOf(prefs.getString("api_key", "") ?: "")
         private set
@@ -51,7 +51,7 @@ class Repo(context: Context, dbName: String = "coasters.db", prefsName: String =
     }
 
     fun updateFilters(f: Filters) {
-        prefs.edit().putBoolean("inc_defunct", f.includeDefunct).putBoolean("inc_kiddie", f.includeKiddie).apply()
+        prefs.edit().putBoolean("inc_defunct", f.includeDefunct).putBoolean("inc_kiddie", f.includeKiddie).putBoolean("us_only", f.usOnly).apply()
         filters = f; stats = build()
     }
 

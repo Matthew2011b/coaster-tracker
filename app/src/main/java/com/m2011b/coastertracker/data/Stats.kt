@@ -109,6 +109,7 @@ class Stats(
      */
     fun loggable(c: Coaster): Boolean = ridden(c) || (
         (life(c) == Life.Operating || life(c) == Life.Sbno) && !Rules.isAlpine(c, alpine) &&
+            (!filters.usOnly || c.country == "US") &&
             (filters.includeKiddie || !Rules.isKiddie(c, kiddie)))
 
     /** Parks with at least one loggable coaster. */

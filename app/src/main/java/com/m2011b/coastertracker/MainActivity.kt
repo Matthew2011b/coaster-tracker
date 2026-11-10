@@ -9,7 +9,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.unit.IntOffset
 import com.m2011b.coastertracker.data.Repo
 import com.m2011b.kit.theme.KitTheme
 import com.m2011b.kit.theme.ThemeEditorScreen
@@ -42,14 +46,27 @@ private val NAV = listOf(
 /** A screen opened on top of a tab. */
 sealed interface Sub {
     data class Model(val key: String) : Sub
+    data class Make(val make: String) : Sub
     data class ParkDetail(val id: Long) : Sub
     data object Theme : Sub
 }
 
+/** One page in the back history: a tab, plus the screen open on top of it if any. */
+internal data class Entry(val id: Int, val tab: String, val sub: Sub?) {
+    /** Tab roots share saved state (toggles, sort, scroll) across visits; opened screens get their own. */
+    val stateKey: String get() = if (sub == null) "root-$tab" else "sub-$id"
+}
+
+private fun tabIndex(tab: String) = NAV.indexOfFirst { it.id == tab }
+
 @Composable
 internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: String = NAV.first().id, startSub: Sub? = null) {
-    var screen by rememberSaveable { mutableStateOf(startScreen) }
-    var sub by remember { mutableStateOf(startSub) }
+    var history by remember {
+        mutableStateOf(listOfNotNull(Entry(0, startScreen, null), startSub?.let { Entry(1, startScreen, it) }))
+    }
+    var nextId by remember { mutableIntStateOf(2) }
+    var goingBack by remember { mutableStateOf(false) }
+    val saved = rememberSaveableStateHolder()
     var here by remember { mutableStateOf<LatLon?>(null) }
     val askPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (ok) locator.locate { here = it }
@@ -57,26 +74,67 @@ internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: S
     val refreshLocation = { if (locator.hasPermission()) locator.locate { here = it } else askPermission.launch(Manifest.permission.ACCESS_COARSE_LOCATION) }
     LaunchedEffect(Unit) { refreshLocation() }
 
-    val open = sub
-    val subTitle = when (open) {
+    val cur = history.last()
+    fun push(tab: String, sub: Sub?) {
+        goingBack = false
+        history = (history + Entry(nextId++, tab, sub)).takeLast(60)
+    }
+    fun open(sub: Sub) = push(cur.tab, sub)
+    fun back() {
+        goingBack = true
+        if (history.size > 1) {
+            val gone = history.last()
+            history = history.dropLast(1)
+            if (gone.sub != null && history.none { it.id == gone.id }) saved.removeState(gone.stateKey)
+        } else history = listOf(Entry(nextId++, NAV.first().id, null))
+    }
+    val canGoBack = history.size > 1 || cur.tab != NAV.first().id || cur.sub != null
+
+    val subTitle = when (val o = cur.sub) {
         is Sub.Model -> "Model"
+        is Sub.Make -> o.make
         is Sub.ParkDetail -> "Park"
         Sub.Theme -> "Custom colors"
         null -> null
     }
     CompositionLocalProvider(LocalHere provides here) {
-        KitAppShell(items = NAV, current = screen, onNavigate = { screen = it; sub = null },
-            subTitle = subTitle, onBack = if (open != null) ({ sub = null }) else null) { id ->
-            if (open != null) when (open) {
-                is Sub.Model -> ModelDetailScreen(repo, open.key)
-                is Sub.ParkDetail -> ParkDetailScreen(repo, open.id) { sub = Sub.Model(it) }
-                Sub.Theme -> ThemeEditorScreen(theme)
-            } else when (id) {
-                "log" -> LogScreen(repo)
-                "stats" -> StatsScreen(repo) { sub = Sub.Model(it) }
-                "parks" -> ParksScreen(repo) { sub = Sub.ParkDetail(it) }
-                "nearest" -> NearestScreen(repo, refreshLocation) { sub = Sub.Model(it) }
-                else -> SettingsScreen(repo, theme) { sub = Sub.Theme }
+        KitAppShell(
+            items = NAV, current = cur.tab,
+            onNavigate = { tab -> if (tab != cur.tab || cur.sub != null) push(tab, null) },
+            subTitle = subTitle, showBackArrow = cur.sub != null,
+            onBack = if (canGoBack) ({ back() }) else null,
+        ) {
+            AnimatedContent(
+                targetState = cur,
+                transitionSpec = {
+                    val ti = tabIndex(targetState.tab); val ii = tabIndex(initialState.tab)
+                    val dir = when {
+                        ti != ii -> if (ti > ii) 1 else -1
+                        goingBack -> -1
+                        else -> 1
+                    }
+                    val spec = tween<IntOffset>(260, easing = FastOutSlowInEasing)
+                    (slideInHorizontally(spec) { it * dir } + fadeIn(tween(200))) togetherWith
+                        (slideOutHorizontally(spec) { -it * dir / 3 } + fadeOut(tween(160)))
+                },
+                contentKey = { it.id },
+                label = "page",
+            ) { e ->
+                saved.SaveableStateProvider(e.stateKey) {
+                    when (val o = e.sub) {
+                        is Sub.Model -> ModelDetailScreen(repo, o.key)
+                        is Sub.Make -> StatsScreen(repo, o.make, onModel = { open(Sub.Model(it)) }, onMake = {})
+                        is Sub.ParkDetail -> ParkDetailScreen(repo, o.id) { open(Sub.Model(it)) }
+                        Sub.Theme -> ThemeEditorScreen(theme)
+                        null -> when (e.tab) {
+                            "log" -> LogScreen(repo)
+                            "stats" -> StatsScreen(repo, null, onModel = { open(Sub.Model(it)) }, onMake = { open(Sub.Make(it)) })
+                            "parks" -> ParksScreen(repo) { open(Sub.ParkDetail(it)) }
+                            "nearest" -> NearestScreen(repo, refreshLocation) { open(Sub.Model(it)) }
+                            else -> SettingsScreen(repo, theme) { open(Sub.Theme) }
+                        }
+                    }
+                }
             }
         }
     }

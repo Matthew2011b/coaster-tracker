@@ -52,6 +52,8 @@ class ScreenshotTest {
 
         go("Stats"); shot("04_stats_models")
         rule.onNodeWithText("Manufacturers").performClick(); shot("05_stats_makers")
+        rule.onNodeWithText("Bolliger & Mabillard").performClick(); shot("05b_stats_one_maker")
+        rule.onNodeWithContentDescription("Back").performClick()
         rule.onNodeWithText("Models").performClick()
         rule.onNodeWithText("Most complete", substring = true).performClick()
         dialog("06_sort_menu")
@@ -71,11 +73,45 @@ class ScreenshotTest {
         shot("12_model_detail")
     }
 
+    /** Back retraces the exact path: Manufacturers > Vekoma > Boomerang, then back, back. */
+    @Test fun backRetracesThePath() {
+        start("back", "stats")
+        rule.onNodeWithText("Manufacturers").performClick()
+        rule.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("Vekoma"))
+        rule.onNodeWithText("Vekoma").performClick()
+        rule.onNodeWithText("Boomerang").performClick()
+        rule.onNodeWithText("Installations", ignoreCase = true).assertExists()
+        rule.onNodeWithContentDescription("Back").performClick()
+        rule.onNodeWithText("Installations", ignoreCase = true).assertDoesNotExist()
+        rule.onNodeWithText("Manufacturers").assertDoesNotExist()  // on the Vekoma page, which has no view toggle
+        rule.onAllNodesWithText("Vekoma").onFirst().assertExists()
+        androidx.test.espresso.Espresso.pressBack()
+        rule.onNodeWithText("Manufacturers").assertIsSelected()
+        rule.onNodeWithText("136 manufacturers", substring = true, ignoreCase = true).assertExists()
+        go("Parks"); androidx.test.espresso.Espresso.pressBack()
+        rule.onNodeWithText("Manufacturers").assertIsSelected()  // back from another tab lands on the same view
+    }
+
+    @Test fun usOnlyHidesTheRegionToggle() {
+        val (_, repo) = start("usonly", "parks")
+        rule.onNodeWithText("Worldwide").assertExists()
+        rule.runOnUiThread { repo.updateFilters(repo.filters.copy(usOnly = true)) }
+        rule.onNodeWithText("Worldwide").assertDoesNotExist()
+        shot("19_parks_us_only")
+    }
+
     @Test fun customColors() {
         val (theme, _) = start("colors", "settings", Sub.Theme)
         shot("17_custom_colors")
         rule.runOnUiThread { theme.changeAdvanced(true) }
         shot("18_custom_colors_advanced")
+    }
+
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h640dp-xhdpi")
+    fun smallThemeButtons() {
+        start("smallcolors", "settings", Sub.Theme)
+        rule.onNodeWithText("COPY THEME CODE").performScrollTo()
+        shot("20_small_theme_buttons")
     }
 
     @Test fun parkDetail() {

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,8 +35,8 @@ fun LogScreen(repo: Repo) {
         val list = parkIds.mapNotNull { repo.park(it) }
         if (here != null) list.sortedBy { it.distanceFrom(here) ?: Double.MAX_VALUE } else list.sortedBy { it.name.lowercase() }
     }
-    var parkId by remember { mutableStateOf<Long?>(null) }
-    var pickedByHand by remember { mutableStateOf(false) }
+    var parkId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var pickedByHand by rememberSaveable { mutableStateOf(false) }
     // Auto-pick until the user chooses: a park within 10 miles, else the last park used, else the nearest.
     LaunchedEffect(here, parks) {
         if (!pickedByHand || parkId !in parkIds) {

@@ -89,6 +89,8 @@ fun SettingsScreen(repo: Repo, theme: ThemeStore, onCustomColors: () -> Unit) {
             ToggleRow("Include defunct coasters", repo.filters.includeDefunct) { repo.updateFilters(repo.filters.copy(includeDefunct = it)) }
             Spacer(Modifier.height(4.dp))
             ToggleRow("Include kiddie and carnival", repo.filters.includeKiddie) { repo.updateFilters(repo.filters.copy(includeKiddie = it)) }
+            Spacer(Modifier.height(4.dp))
+            ToggleRow("US parks only", repo.filters.usOnly) { repo.updateFilters(repo.filters.copy(usOnly = it)) }
         }
 
         Panel(Modifier.fillMaxWidth()) {

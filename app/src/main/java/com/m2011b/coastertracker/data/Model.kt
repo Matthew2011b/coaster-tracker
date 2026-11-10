@@ -54,7 +54,7 @@ data class Coaster(
 
 enum class Life { Operating, Sbno, Defunct, Upcoming, Unknown }
 
-data class Filters(val includeDefunct: Boolean = false, val includeKiddie: Boolean = false)
+data class Filters(val includeDefunct: Boolean = false, val includeKiddie: Boolean = false, val usOnly: Boolean = false)
 
 object Rules {
     /** A coaster only counts as SBNO once it has been standing for this long; before that it's "operating". */
@@ -93,6 +93,7 @@ object Rules {
     fun counts(c: Coaster, ridden: Boolean, f: Filters, today: LocalDate, kiddie: ModelSet, alpine: ModelSet = ModelSet.EMPTY): Boolean {
         if (ridden) return true
         if (isAlpine(c, alpine)) return false
+        if (f.usOnly && c.country != "US") return false
         val kidOk = f.includeKiddie || !isKiddie(c, kiddie)
         return when (life(c, today)) {
             Life.Operating -> kidOk

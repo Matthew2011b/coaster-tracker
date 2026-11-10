@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,19 +28,26 @@ import java.util.Locale
 
 // ---------- Stats ----------
 
+/** Stats for everything, or (with [make]) for one manufacturer's models, opened from the Manufacturers view. */
 @Composable
-fun StatsScreen(repo: Repo, onModel: (String) -> Unit) {
+fun StatsScreen(repo: Repo, make: String?, onModel: (String) -> Unit, onMake: (String) -> Unit) {
     val p = LocalPalette.current
     val s = repo.stats
-    var view by remember { mutableIntStateOf(0) }
-    var sort by remember { mutableStateOf(SortBy.MostComplete) }
-    var makeFilter by remember { mutableStateOf<String?>(null) }
+    var view by rememberSaveable { mutableIntStateOf(0) }
+    var sort by rememberSaveable { mutableStateOf(SortBy.MostComplete) }
     var sortOpen by remember { mutableStateOf(false) }
+    val showModels = make != null || view == 0
+    val models = remember(s, sort, make) { s.sortedModels(sort).filter { make == null || it.make == make } }
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Segmented(listOf("Models", "Manufacturers"), view) { view = it; if (it == 1) makeFilter = null }
+        if (make == null) Segmented(listOf("Models", "Manufacturers"), view) { view = it }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (view == 0) {
+            if (make != null) {
+                val mk = s.makes.firstOrNull { it.make == make }
+                StatTile("CREDITS", "${mk?.coastersRidden ?: 0}", Modifier.weight(1f))
+                StatTile("MODELS RIDDEN", "${mk?.modelsRidden ?: 0}", Modifier.weight(1f))
+                StatTile("NEVER RIDDEN", "${(mk?.models ?: 0) - (mk?.modelsRidden ?: 0)}", Modifier.weight(1f))
+            } else if (view == 0) {
                 StatTile("CREDITS", "${s.credits}", Modifier.weight(1f))
                 StatTile("MODELS RIDDEN", "${s.modelsRidden}", Modifier.weight(1f))
                 StatTile("NEVER RIDDEN", "${s.modelsNever}", Modifier.weight(1f))
@@ -50,14 +58,7 @@ fun StatsScreen(repo: Repo, onModel: (String) -> Unit) {
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            val count = if (view == 0) s.models.count { makeFilter == null || it.make == makeFilter } else s.makes.size
-            if (makeFilter != null && view == 0) {
-                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.clip(CircleShape).background(p.accent).clickable { makeFilter = null }.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                        Text("${shortMake(makeFilter)}  ✕", color = p.btnInk, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            } else SectionHead(if (view == 0) "$count models" else "$count manufacturers", modifier = Modifier.weight(1f))
+            SectionHead(if (showModels) "${models.size} models" else "${s.makes.size} manufacturers", modifier = Modifier.weight(1f))
             Box {
                 Row(
                     Modifier.clip(CircleShape).border(1.dp, p.line, CircleShape).background(p.surface).clickable { sortOpen = true }
@@ -72,16 +73,15 @@ fun StatsScreen(repo: Repo, onModel: (String) -> Unit) {
             }
         }
         ListBox(Modifier.weight(1f)) {
-            if (view == 0) {
-                val rows = s.sortedModels(sort).filter { makeFilter == null || it.make == makeFilter }
-                items(rows, key = { it.key }) { m ->
-                    ProgressRow(m.model, m.make, m.ridden, m.total) { onModel(m.key) }
+            if (showModels) {
+                items(models, key = { it.key }) { m ->
+                    ProgressRow(m.model, if (make != null) "${m.total} coasters" else m.make, m.ridden, m.total) { onModel(m.key) }
                     RowDivider()
                 }
             } else {
                 items(s.sortedMakes(sort), key = { it.make }) { mk ->
                     ProgressRow(mk.make, "${mk.coastersRidden} of ${mk.coasters} coasters ridden", mk.modelsRidden, mk.models, unit = "models") {
-                        makeFilter = mk.make; view = 0
+                        onMake(mk.make)
                     }
                     RowDivider()
                 }
@@ -149,16 +149,17 @@ private fun parkLine(c: Coaster, park: com.m2011b.coastertracker.data.Park?) =
 @Composable
 fun ParksScreen(repo: Repo, onPark: (Long) -> Unit) {
     val s = repo.stats
-    var byModels by remember { mutableIntStateOf(0) }
-    var region by remember { mutableIntStateOf(0) }
-    val rows = remember(s, byModels, region) {
-        val list = s.parkStats(usOnly = region == 0)
+    var byModels by rememberSaveable { mutableIntStateOf(0) }
+    var region by rememberSaveable { mutableIntStateOf(0) }
+    val usLocked = repo.filters.usOnly
+    val rows = remember(s, byModels, region, usLocked) {
+        val list = s.parkStats(usOnly = usLocked || region == 0)
         if (byModels == 0) list.sortedWith(compareByDescending<com.m2011b.coastertracker.data.ParkStat> { it.newModels }.thenByDescending { it.unridden })
         else list.sortedWith(compareByDescending<com.m2011b.coastertracker.data.ParkStat> { it.unridden }.thenByDescending { it.newModels })
     }.take(150)
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Segmented(listOf("Unridden models", "Unridden coasters"), byModels) { byModels = it }
-        Segmented(listOf("United States", "Worldwide"), region) { region = it }
+        if (!usLocked) Segmented(listOf("United States", "Worldwide"), region) { region = it }
         ListBox(Modifier.weight(1f)) {
             itemsIndexed(rows, key = { _, r -> r.park.id }) { i, r ->
                 val main = if (byModels == 0) r.newModels else r.unridden
