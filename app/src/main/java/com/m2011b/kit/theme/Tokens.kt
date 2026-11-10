@@ -59,7 +59,7 @@ object Std {
     val Surface = ColorToken("Surface", "Boxes, lists & nav bar", 0xFFFFFFFF, 0xFF1F2224)
     val Text = ColorToken("Text", "Text & icons", 0xFF25282A, 0xFFF3F3F3)
     val Header = ColorToken("Header", "Top bar", 0xFFDADAD7, 0xFF141617)
-    val Accent = ColorToken("Accent", "Accent (buttons, selected tab)", 0xFF1F5C99, 0xFF5B9BD5)
+    val Accent = ColorToken("Accent", "Accent (buttons, selected tab)", 0xFF16706B, 0xFF4FB3AB)
     val Ok = ColorToken("Ok", "Ridden & complete", 0xFF1E7B46, 0xFF5CCB8A)
 
     val Muted = ColorToken("Muted", "Labels & secondary text", 0xFF707372, 0xFFA3A6A8,

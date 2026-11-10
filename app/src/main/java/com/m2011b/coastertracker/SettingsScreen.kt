@@ -34,8 +34,8 @@ import kotlinx.coroutines.launch
 
 private data class Preset(val name: String, val light: Long, val dark: Long)
 private val PRESETS = listOf(
-    Preset("Blue", 0xFF1F5C99, 0xFF5B9BD5), Preset("Orange", 0xFFB4471B, 0xFFF08A5D),
-    Preset("Green", 0xFF1E7B46, 0xFF5CCB8A), Preset("Purple", 0xFF5B3A99, 0xFFA98BE0),
+    Preset("Teal", 0xFF16706B, 0xFF4FB3AB), Preset("Blue", 0xFF1F5C99, 0xFF5B9BD5),
+    Preset("Charcoal", 0xFF3A3F44, 0xFFC9CDD1), Preset("Orange", 0xFFB85E14, 0xFFF0A04B),  // the logo orange; deeper in light mode for white text
 )
 
 @Composable
