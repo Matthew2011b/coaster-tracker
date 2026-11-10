@@ -27,10 +27,11 @@ class Stats(
     val rides: Map<Long, String?>,
     val filters: Filters,
     val today: LocalDate,
-    val kiddie: KiddieModels,
+    val kiddie: ModelSet,
+    val alpine: ModelSet = ModelSet.EMPTY,
 ) {
     fun ridden(c: Coaster) = c.id in rides
-    fun counts(c: Coaster) = Rules.counts(c, ridden(c), filters, today, kiddie)
+    fun counts(c: Coaster) = Rules.counts(c, ridden(c), filters, today, kiddie, alpine)
     fun life(c: Coaster) = Rules.life(c, today)
 
     val counted: List<Coaster> by lazy { coasters.filter { counts(it) } }
@@ -102,10 +103,19 @@ class Stats(
         }.groupBy { it.stat.key }.map { (_, l) -> l.minBy { it.miles } }.sortedBy { it.miles }
     }
 
-    /** Coasters at a park worth showing on the log screen: anything logged, plus anything not defunct. */
-    fun atPark(parkId: Long): List<Coaster> = coasters.filter {
-        it.parkId == parkId && (ridden(it) || life(it) == Life.Operating || life(it) == Life.Sbno)
-    }.sortedWith(compareBy({ ridden(it) }, { it.name.lowercase() }))
+    /**
+     * Whether a coaster shows on the log screen: anything logged, plus anything standing that the
+     * filters allow (kiddie rides only when they're included, never alpine coasters).
+     */
+    fun loggable(c: Coaster): Boolean = ridden(c) || (
+        (life(c) == Life.Operating || life(c) == Life.Sbno) && !Rules.isAlpine(c, alpine) &&
+            (filters.includeKiddie || !Rules.isKiddie(c, kiddie)))
+
+    /** Parks with at least one loggable coaster. */
+    val loggableParkIds: Set<Long> by lazy { coasters.filter { it.parkId != null && loggable(it) }.map { it.parkId!! }.toSet() }
+
+    fun atPark(parkId: Long): List<Coaster> = coasters.filter { it.parkId == parkId && loggable(it) }
+        .sortedWith(compareBy({ ridden(it) }, { it.name.lowercase() }))
 
     fun isNewModel(c: Coaster) = c.modelKey != null && !ridden(c) && (model(c.modelKey!!)?.ridden ?: 1) == 0
 }

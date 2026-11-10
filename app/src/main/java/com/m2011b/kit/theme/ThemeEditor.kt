@@ -10,7 +10,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -22,9 +25,8 @@ import androidx.compose.ui.unit.sp
 import com.m2011b.kit.ui.*
 
 /**
- * The hidden theme menu: System/Light/Dark switch, every color token for the light and dark
- * palettes with a picker, reset, and theme codes to copy a look between apps.
- * KitAppShell opens it after the secret taps; it can also be placed on any screen directly.
+ * Custom colors: the core colors for the light and dark palettes, an "Advanced colors" switch that
+ * exposes the derived ones, reset, and theme codes to copy a look between apps.
  */
 @Composable
 fun ThemeEditorScreen(store: ThemeStore, modifier: Modifier = Modifier) {
@@ -39,34 +41,36 @@ fun ThemeEditorScreen(store: ThemeStore, modifier: Modifier = Modifier) {
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        FieldLabel("Theme")
-        Segmented(ThemeMode.entries.map { it.name }, ThemeMode.entries.indexOf(store.mode)) { store.changeMode(ThemeMode.entries[it]) }
-        FieldLabel("Editing palette")
-        Segmented(listOf("Light", "Dark"), if (editDark) 1 else 0) { editDark = it == 1 }
+        Segmented(listOf("Light colors", "Dark colors"), if (editDark) 1 else 0) { editDark = it == 1 }
         if (editDark != p.isDark) {
             Text(
-                "The ${if (editDark) "dark" else "light"} palette isn't showing right now, so changes won't be visible until the theme switches.",
+                "The ${if (editDark) "dark" else "light"} colors aren't showing right now, so changes won't be visible until the theme switches.",
                 color = p.muted, fontSize = 12.sp,
             )
         }
         Panel(Modifier.fillMaxWidth()) {
-            store.tokens.forEach { t ->
-                val c = store.get(editDark, t)
-                Row(
-                    Modifier.fillMaxWidth().clip(BoxShape).clickable { editing = t }.padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.size(36.dp).background(c, BoxShape).border(1.dp, p.line, BoxShape))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(t.label, color = p.ink, fontSize = 15.sp)
-                        Text("#" + ThemeStore.hex6(c) + if (store.isDefault(editDark, t)) "" else "  (changed)",
-                            color = p.muted, fontFamily = LocalKitFonts.current.mono, fontSize = 12.sp)
-                    }
-                }
-            }
+            store.core.forEach { t -> TokenRow(store, t, editDark) { editing = t } }
         }
-        SecondaryButton("RESET ${if (editDark) "DARK" else "LIGHT"} TO DEFAULTS") { confirmReset = true }
+        Panel(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { store.changeAdvanced(!store.advanced) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Advanced colors", color = p.ink, fontSize = 15.sp)
+                    if (!store.advanced) Text("Worked out from the colors above", color = p.muted, fontSize = 12.sp)
+                }
+                Switch(
+                    store.advanced, onCheckedChange = { store.changeAdvanced(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = p.btnInk, checkedTrackColor = p.accent, uncheckedThumbColor = p.muted,
+                        uncheckedTrackColor = p.surface, uncheckedBorderColor = p.line,
+                    ),
+                )
+            }
+            if (store.advanced) store.derivedTokens.forEach { t -> TokenRow(store, t, editDark) { editing = t } }
+        }
+        SecondaryButton("RESET ${if (editDark) "DARK" else "LIGHT"} COLORS") { confirmReset = true }
 
         FieldLabel("Share between apps")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -77,8 +81,6 @@ fun ThemeEditorScreen(store: ThemeStore, modifier: Modifier = Modifier) {
             }
             SecondaryButton("PASTE CODE", Modifier.weight(1f)) { pasteOpen = true }
         }
-        Text("A theme code carries every color and the light/dark setting. Paste it into any app built on this kit.",
-            color = p.muted, fontSize = 12.sp)
     }
 
     editing?.let { t ->
@@ -91,9 +93,32 @@ fun ThemeEditorScreen(store: ThemeStore, modifier: Modifier = Modifier) {
             "Reset colors?", onDismiss = { confirmReset = false },
             confirm = "Reset" to { store.reset(editDark); confirmReset = false },
             dismiss = listOf("Cancel" to { confirmReset = false }),
-        ) { Text("Every ${if (editDark) "dark" else "light"} mode color goes back to its default.") }
+        ) { Text("Every ${if (editDark) "dark" else "light"} color goes back to its default.") }
     }
     if (pasteOpen) PasteCodeDialog(store) { pasteOpen = false }
+}
+
+@Composable
+private fun TokenRow(store: ThemeStore, t: ColorToken, dark: Boolean, onClick: () -> Unit) {
+    val p = LocalPalette.current
+    val c = store.get(dark, t)
+    val own = !store.isDefault(dark, t)
+    Row(
+        Modifier.fillMaxWidth().clip(BoxShape).clickable(onClick = onClick).padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(36.dp).background(c, BoxShape).border(1.dp, p.line, BoxShape))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(t.label, color = p.ink, fontSize = 15.sp)
+            val note = when { !own && t.derived -> "  auto"; own && !t.derived -> "  changed"; else -> "" }
+            Text("#" + ThemeStore.hex6(c) + note, color = p.muted, fontFamily = LocalKitFonts.current.mono, fontSize = 12.sp)
+        }
+        if (own && t.derived) {
+            Text("AUTO", color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clip(BoxShape).clickable { store.clear(dark, t) }.padding(horizontal = 10.dp, vertical = 8.dp))
+        }
+    }
 }
 
 @Composable

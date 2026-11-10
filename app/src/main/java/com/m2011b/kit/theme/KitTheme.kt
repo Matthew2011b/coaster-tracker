@@ -31,8 +31,7 @@ class Palette(private val colors: Map<String, Color>, val isDark: Boolean) {
     val btnInk get() = this[Std.ButtonText]
     val ok get() = this[Std.Ok]
     val err get() = this[Std.Err]
-    val menu get() = this[Std.Menu]
-    val menuSel get() = this[Std.MenuSelected]
+    val accentSoft get() = this[Std.AccentSoft]
 }
 
 /** Fonts the kit uses. Apps pass their bundled fonts; defaults are the system fonts. */
@@ -58,8 +57,8 @@ fun KitTheme(store: ThemeStore, fonts: KitFonts = KitFonts(), content: @Composab
     val scheme = base.copy(
         primary = p.accent, onPrimary = p.btnInk, primaryContainer = p.accent, onPrimaryContainer = p.btnInk,
         inversePrimary = p.accent,
-        secondary = p.accent, onSecondary = p.btnInk, secondaryContainer = p.menuSel, onSecondaryContainer = p.ink,
-        tertiary = p.accent, onTertiary = p.btnInk, tertiaryContainer = p.menuSel, onTertiaryContainer = p.ink,
+        secondary = p.accent, onSecondary = p.btnInk, secondaryContainer = p.accentSoft, onSecondaryContainer = p.ink,
+        tertiary = p.accent, onTertiary = p.btnInk, tertiaryContainer = p.accentSoft, onTertiaryContainer = p.ink,
         background = p.bg, onBackground = p.ink,
         surface = p.surface, onSurface = p.ink, surfaceVariant = p.surface, onSurfaceVariant = p.muted,
         surfaceTint = Color.Transparent, inverseSurface = p.ink, inverseOnSurface = p.bg,

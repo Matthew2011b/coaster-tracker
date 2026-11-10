@@ -6,7 +6,7 @@
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher"
-        android:label="Coaster Tracker"
+        android:label="Lift Hill"
         android:theme="@style/AppTheme">
         <activity
             android:name=".MainActivity"

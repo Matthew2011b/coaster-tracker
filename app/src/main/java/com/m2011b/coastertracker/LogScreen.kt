@@ -28,10 +28,8 @@ fun LogScreen(repo: Repo) {
     val stats = repo.stats
     val here = LocalHere.current
 
-    // Parks worth picking: anywhere with a coaster that is running or that you've logged.
-    val parkIds = remember(stats) {
-        stats.coasters.filter { it.parkId != null && (stats.ridden(it) || stats.life(it) == Life.Operating) }.map { it.parkId!! }.toSet()
-    }
+    // Parks worth picking: anywhere with a coaster you could log under the current filters, or already logged.
+    val parkIds = stats.loggableParkIds
     val parks = remember(parkIds, here) {
         val list = parkIds.mapNotNull { repo.park(it) }
         if (here != null) list.sortedBy { it.distanceFrom(here) ?: Double.MAX_VALUE } else list.sortedBy { it.name.lowercase() }
@@ -40,10 +38,10 @@ fun LogScreen(repo: Repo) {
     var pickedByHand by remember { mutableStateOf(false) }
     // Auto-pick until the user chooses: a park within 10 miles, else the last park used, else the nearest.
     LaunchedEffect(here, parks) {
-        if (!pickedByHand) {
+        if (!pickedByHand || parkId !in parkIds) {
             val nearest = here?.let { parks.firstOrNull() }
             val close = nearest?.takeIf { (it.distanceFrom(here) ?: 999.0) < 10 }
-            parkId = close?.id ?: repo.lastParkId ?: nearest?.id ?: parks.firstOrNull()?.id
+            parkId = close?.id ?: repo.lastParkId?.takeIf { it in parkIds } ?: nearest?.id ?: parks.firstOrNull()?.id
         }
     }
     val park = repo.park(parkId)
@@ -65,7 +63,7 @@ fun LogScreen(repo: Repo) {
             "Coaster", atPark.map { Choice.Pick(it) } + Choice.Add, selCoaster?.let { Choice.Pick(it) },
             { if (it is Choice.Pick) it.c.name else "+ Add a coaster not listed" },
             { if (it is Choice.Pick) selected = it.c.id else adding = true },
-            placeholder = "No coasters here",
+            placeholder = if (atPark.isEmpty()) "No coasters here" else "All ridden here",
         )
         val already = selCoaster != null && stats.ridden(selCoaster)
         PrimaryButton(if (already) "ALREADY LOGGED" else "LOG", enabled = selCoaster != null && !already) {
@@ -95,7 +93,7 @@ fun Park.distanceFrom(here: LatLon?): Double? =
     if (here == null || lat == null || lon == null) null else Rules.miles(here.first, here.second, lat, lon)
 
 fun parkSub(pk: Park, here: LatLon?): String =
-    listOfNotNull(pk.country, pk.distanceFrom(here)?.let { miles(it) }).joinToString(" · ")
+    listOfNotNull(pk.place, pk.distanceFrom(here)?.let { miles(it) }).joinToString(" · ")
 
 /** Box that looks like the kit's SelectBox but opens a searchable dialog (for long lists). */
 @Composable
@@ -127,7 +125,7 @@ fun ParkPicker(parks: List<Park>, here: LatLon?, onDismiss: () -> Unit, onPick: 
         Spacer(Modifier.height(8.dp))
         ListBox(Modifier.heightIn(max = 340.dp)) {
             items(shown, key = { it.id }) { pk ->
-                ValueRow(pk.name, pk.country, pk.distanceFrom(here)?.let { miles(it) } ?: "", onClick = { onPick(pk) })
+                ValueRow(pk.name, pk.place, pk.distanceFrom(here)?.let { miles(it) } ?: "", onClick = { onPick(pk) })
                 RowDivider()
             }
         }

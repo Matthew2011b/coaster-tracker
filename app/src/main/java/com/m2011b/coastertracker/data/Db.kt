@@ -8,8 +8,8 @@ import android.database.sqlite.SQLiteOpenHelper
 import org.json.JSONObject
 
 /**
- * SQLite storage. Schema v1:
- *  parks(id, name, country, lat, lon)
+ * SQLite storage. Schema v2:
+ *  parks(id, name, country, lat, lon, city, state)    (v2 added city, state)
  *  coasters(id, name, park_id, park_name, country, location_kind, status, sbno_since, opened, closed,
  *           make, model, height_m, speed_kmh, custom)
  *  rides(coaster_id, ridden_on)      one credit per coaster, date optional
@@ -19,10 +19,10 @@ import org.json.JSONObject
  * Any schema change needs an onUpgrade step plus a test that starts from the old schema.
  */
 class Db(private val context: Context, name: String = "coasters.db") : SQLiteOpenHelper(context, name, null, VERSION) {
-    companion object { const val VERSION = 1 }
+    companion object { const val VERSION = 2 }
 
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE parks(id INTEGER PRIMARY KEY, name TEXT NOT NULL, country TEXT, lat REAL, lon REAL)")
+        db.execSQL("CREATE TABLE parks(id INTEGER PRIMARY KEY, name TEXT NOT NULL, country TEXT, lat REAL, lon REAL, city TEXT, state TEXT)")
         db.execSQL(
             "CREATE TABLE coasters(id INTEGER PRIMARY KEY, name TEXT NOT NULL, park_id INTEGER, park_name TEXT, country TEXT, " +
                 "location_kind TEXT, status TEXT NOT NULL, sbno_since TEXT, opened TEXT, closed TEXT, make TEXT, model TEXT, " +
@@ -36,12 +36,23 @@ class Db(private val context: Context, name: String = "coasters.db") : SQLiteOpe
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // v1 is the first schema. Add steps here, one per version, never dropping user tables.
+        // One step per version, never dropping user tables.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE parks ADD COLUMN city TEXT")
+            db.execSQL("ALTER TABLE parks ADD COLUMN state TEXT")
+            val parks = snapshot().getJSONArray("parks")
+            for (i in 0 until parks.length()) {
+                val p = parks.getJSONObject(i).toPark()
+                if (p.city == null && p.state == null) continue
+                db.update("parks", ContentValues().apply { put("city", p.city); put("state", p.state) }, "id=?", arrayOf(p.id.toString()))
+            }
+        }
     }
 
+    private fun snapshot() = JSONObject(context.assets.open("snapshot.json").bufferedReader().use { it.readText() })
+
     private fun seed(db: SQLiteDatabase) {
-        val text = context.assets.open("snapshot.json").bufferedReader().use { it.readText() }
-        val o = JSONObject(text)
+        val o = snapshot()
         val parks = o.getJSONArray("parks")
         for (i in 0 until parks.length()) upsertPark(db, parks.getJSONObject(i).toPark())
         val cs = o.getJSONArray("coasters")
@@ -49,9 +60,14 @@ class Db(private val context: Context, name: String = "coasters.db") : SQLiteOpe
         setMeta(db, "data_as_of", o.optString("generated"))
     }
 
-    fun loadParks(): List<Park> = readableDatabase.rawQuery("SELECT id,name,country,lat,lon FROM parks", null).use { c ->
-        buildList { while (c.moveToNext()) add(Park(c.getLong(0), c.getString(1), c.str(2), c.dbl(3), c.dbl(4))) }
+    fun loadParks(): List<Park> = readableDatabase.rawQuery("SELECT id,name,country,lat,lon,city,state FROM parks", null).use { c ->
+        buildList { while (c.moveToNext()) add(Park(c.getLong(0), c.getString(1), c.str(2), c.dbl(3), c.dbl(4), c.str(5), c.str(6))) }
     }
+
+    fun storedPark(db: SQLiteDatabase, id: Long): Park? =
+        db.rawQuery("SELECT id,name,country,lat,lon,city,state FROM parks WHERE id=?", arrayOf(id.toString())).use { c ->
+            if (c.moveToFirst()) Park(c.getLong(0), c.getString(1), c.str(2), c.dbl(3), c.dbl(4), c.str(5), c.str(6)) else null
+        }
 
     fun loadCoasters(): List<Coaster> = readableDatabase.rawQuery(
         "SELECT c.id,c.name,c.park_id,c.park_name,c.country,c.location_kind,c.status,c.sbno_since,c.opened,c.closed," +
@@ -111,6 +127,7 @@ class Db(private val context: Context, name: String = "coasters.db") : SQLiteOpe
     fun upsertPark(db: SQLiteDatabase, p: Park) {
         db.insertWithOnConflict("parks", null, ContentValues().apply {
             put("id", p.id); put("name", p.name); put("country", p.country); put("lat", p.lat); put("lon", p.lon)
+            put("city", p.city); put("state", p.state)
         }, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
@@ -142,7 +159,7 @@ private fun Cursor.lng(i: Int): Long? = if (isNull(i)) null else getLong(i)
 private fun JSONObject.s(k: String): String? = if (isNull(k) || !has(k)) null else getString(k)
 private fun JSONObject.d(k: String): Double? = if (isNull(k) || !has(k)) null else getDouble(k)
 
-internal fun JSONObject.toPark() = Park(getLong("id"), getString("name"), s("country"), d("lat"), d("lon"))
+internal fun JSONObject.toPark() = Park(getLong("id"), getString("name"), s("country"), d("lat"), d("lon"), s("city"), s("state"))
 internal fun JSONObject.toCoaster() = Coaster(
     getLong("id"), getString("name"), if (isNull("parkId")) null else getLong("parkId"), s("parkName"), s("country"),
     s("locationKind"), getString("status"), s("sbnoSince"), s("opened"), s("closed"), s("make"), s("model"), d("heightM"), d("speedKmh"),

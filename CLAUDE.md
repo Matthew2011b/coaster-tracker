@@ -1,8 +1,9 @@
-# Coaster Tracker
+# Lift Hill
 
-Template for Matthew's Android apps (Kotlin, Jetpack Compose, sideloaded). New apps start as a copy
-of this repo; `tools/new-app.sh` renames it. The UI kit lives in `com.m2011b.kit` and is shared by
-every app built from here: keep it self-contained so it can be copied into older apps too.
+Matthew's coaster credit tracker (Kotlin, Jetpack Compose, sideloaded). Repo and package are still
+named coaster-tracker / com.m2011b.coastertracker; the applicationId must not change or updates won't
+install over the phone's copy. The UI kit lives in `com.m2011b.kit`. Future apps borrow pieces from
+any of Matthew's repos rather than starting from a template.
 
 ## Build and test
 - `./gradlew testDebugUnitTest`: unit tests plus Robolectric screenshot tests at phone size.
@@ -23,16 +24,16 @@ every app built from here: keep it self-contained so it can be copied into older
 - Matthew generates keys on his own PC. Never generate, print or ask for a key or password in chat.
 
 ## UI kit (app/src/main/java/com/m2011b/kit)
-- `theme/Tokens.kt`: ColorToken (key, label, light, dark) and `Std`, the standard tokens.
+- `theme/Tokens.kt`: ColorToken (key, label, light, dark, derive) and `Std`. Six core tokens are what
+  users edit; tokens with `derive` are worked out from them unless "Advanced colors" is on.
   Token keys are saved on users' phones: never rename a shipped key.
-- `theme/ThemeStore.kt`: persisted light/dark palettes, System/Light/Dark mode, theme codes
-  (`THEME1|...`) to copy a look between apps.
+- `theme/ThemeStore.kt`: persisted light/dark palettes, System/Light/Dark mode, the advanced switch,
+  theme codes (`THEME1|...`) to copy a look between apps.
 - `theme/KitTheme.kt`: KitTheme(store, fonts) maps tokens onto Material so stock widgets follow.
   Read colors with `LocalPalette.current` (`p.accent`, `p[AppTokens.X]`), fonts with `LocalKitFonts`.
-- `theme/ThemeEditor.kt`, `theme/ColorPicker.kt`: the hidden theme menu.
-- `theme/SecretTaps.kt`: `Modifier.secretTaps(count) { }` for hidden unlocks.
-- `ui/AppShell.kt`: KitAppShell = top bar, accent rule, side menu, back handling, and the hidden
-  theme menu on 5 taps below the menu items. Use it for every app unless told otherwise.
+- `theme/ThemeEditor.kt`, `theme/ColorPicker.kt`: the Custom colors screen (Settings > "+").
+- `ui/AppShell.kt`: KitAppShell = compact 48dp top bar with centered title and back arrow for
+  sub-screens, accent rule, bottom nav (NavItem icons are SVG path strings on a 24 grid), back handling.
 - `ui/Components.kt`: FieldBox (status-colored input box), FieldLabel, SelectBox, PrimaryButton,
   SecondaryButton, Panel, StatTile, Segmented, KitDialog (text only), FormDialog.
 
@@ -44,11 +45,14 @@ every app built from here: keep it self-contained so it can be copied into older
 - Any SQLite schema change needs an onUpgrade step and a test that starts from the old schema.
 
 ## App-specific code (com.m2011b.coastertracker)
-- `data/`: Db (SQLite v1, seeded from assets/snapshot.json), Repo (state + actions), Stats (all screen math),
-  Rules (SBNO 9-month clock, kiddie/carnival filter, what counts), Normalizer (assets/normalize.json aliases and
+- `data/`: Db (SQLite v2, seeded from assets/snapshot.json; v2 added parks.city/state), Repo (state + actions), Stats (all screen math),
+  Rules (SBNO 9-month clock, kiddie/carnival filter, alpine exclusion, what counts), Normalizer (assets/normalize.json aliases and
   model merges), Sync (Coasterpedia pull with the user's own API key), Csv (import/export).
 - Data rules: make/model never change on updates (only blanks fill); user edits live in `overrides`;
   logged rides always count, whatever the filters; a coaster is SBNO only after 270 days standing.
+  Alpine/mountain coasters (normalize.json alpineModels + name rule) never count unless logged.
+  The log screen hides kiddie rides and kiddie-only parks when kiddie is filtered out.
+  US parks show "City, ST": state comes from /v1/parks, city only from /v1/parks/{id} (snapshot only).
 - Screens: LogScreen.kt, Screens.kt (Stats, Model detail, Parks, Park detail, Nearest), SettingsScreen.kt.
 - Coaster data is Coasterpedia (CC BY-SA 4.0): keep the credit line on Settings.
 - Building here: Maven Central rate-limits shared IPs; a local Gradle init script points at Google's mirror.

@@ -3,6 +3,7 @@
 Inputs (paths relative to this file unless absolute):
   coasters.json  - /v1/attractions?type=coaster, all pages
   parks.json     - /v1/parks, all pages
+  places.json    - optional {park_id: {"place": city, "state": ...}} from /v1/parks/{id} for US parks
   wikidata.csv   - Wikidata roller coasters with manufacturer labels
   aliases.json   - manufacturer alias table
 Output:
@@ -173,6 +174,10 @@ for a in coasters_raw:
     stats["no_model"] += mo is None
 
 used_parks = {c["parkId"] for c in coasters if c["parkId"]}
+try:
+    places = json.load(open(f"{SRC}/places.json"))
+except FileNotFoundError:
+    places = {}
 parks = []
 for pid in sorted(used_parks):
     p = parks_raw.get(pid)
@@ -181,7 +186,9 @@ for pid in sorted(used_parks):
         continue
     co = p.get("coordinates") or {}
     parks.append({"id": pid, "name": p["name"], "country": (p.get("country") or {}).get("code"),
-                  "lat": co.get("lat"), "lon": co.get("lon"), "status": p.get("status")})
+                  "lat": co.get("lat"), "lon": co.get("lon"), "status": p.get("status"),
+                  "city": (places.get(str(pid)) or {}).get("place"),
+                  "state": p.get("state") or (places.get(str(pid)) or {}).get("state")})
 
 out = {"generated": TODAY, "source": "Coasterpedia (coasterpedia.net), CC BY-SA 4.0; manufacturer gaps partly from Wikidata (CC0)",
        "parks": parks, "coasters": coasters}

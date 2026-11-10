@@ -11,7 +11,8 @@ class Normalizer(json: String) {
     private val modelMap: Map<String, Map<String, String>>
     private val prefixMap: Map<String, List<Pair<Regex, String>>>
     private val ptc: String
-    val kiddie: KiddieModels
+    val kiddie: ModelSet
+    val alpine: ModelSet
 
     init {
         val o = JSONObject(json)
@@ -27,8 +28,11 @@ class Normalizer(json: String) {
             (0 until arr.length()).map { i -> val p = arr.getJSONArray(i); Regex(p.getString(0)) to p.getString(1) }
         }
         ptc = o.getString("ptcCustom")
-        val k = o.getJSONArray("kiddieModels")
-        kiddie = KiddieModels((0 until k.length()).map { i -> val p = k.getJSONArray(i); p.getString(0) to p.getString(1) }.toSet())
+        fun set(name: String) = o.optJSONArray(name)?.let { k ->
+            ModelSet((0 until k.length()).map { i -> val p = k.getJSONArray(i); p.getString(0) to p.getString(1) }.toSet())
+        } ?: ModelSet.EMPTY
+        kiddie = set("kiddieModels")
+        alpine = set("alpineModels")
     }
 
     fun make(raw: String?): String? = raw?.trim()?.takeIf { it.isNotEmpty() }?.let { aliases[it] ?: it }

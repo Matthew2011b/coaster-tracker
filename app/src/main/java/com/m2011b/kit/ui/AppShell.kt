@@ -2,105 +2,123 @@ package com.m2011b.kit.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m2011b.kit.theme.LocalPalette
-import com.m2011b.kit.theme.ThemeEditorScreen
-import com.m2011b.kit.theme.ThemeStore
-import com.m2011b.kit.theme.secretTaps
-import kotlinx.coroutines.launch
-
-/** One entry in the side menu. [id] is what KitAppShell hands back to the app's content lambda. */
-data class NavItem(val id: String, val title: String)
 
 /**
- * The standard app frame: charcoal top bar with a hamburger, an accent rule under it, a side menu
- * of [items], and the hidden theme menu wired to [secretTapCount] quick taps on the empty space at
- * the bottom of the side menu. Back closes the menu, then the theme screen, then returns to the
- * first item. [content] draws the screen for the current item id.
+ * One bottom-nav destination. [title] shows in the top bar, [label] under the icon, and [icon] is
+ * SVG path data on a 24x24 grid, drawn as a 2-unit outline (same format as Lucide/Feather icons).
  */
-@OptIn(ExperimentalMaterial3Api::class)
+data class NavItem(val id: String, val title: String, val label: String = title, val icon: String)
+
+/** Builds an outline icon from SVG path data on a 24x24 grid. */
+fun outlineIcon(name: String, pathData: String): ImageVector =
+    ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f).apply {
+        addPath(
+            pathData = PathParser().parsePathString(pathData).toNodes(),
+            fill = null, stroke = SolidColor(Color.Black), strokeLineWidth = 2f,
+            strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round,
+        )
+    }.build()
+
+private const val BACK_ICON = "M15 5l-7 7 7 7"
+
+/**
+ * The standard app frame: a compact top bar with a centered title and an accent rule under it,
+ * and a bottom bar with one icon per [items] entry. Pass [subTitle] and [onBack] while a screen is
+ * open on top of a tab: the bar shows that title and a back arrow. System back closes the open
+ * screen first, then returns to the first tab. [content] draws the screen for the current tab id.
+ */
 @Composable
 fun KitAppShell(
-    appName: String,
     items: List<NavItem>,
     current: String,
     onNavigate: (String) -> Unit,
-    themeStore: ThemeStore,
-    secretTapCount: Int = 5,
+    subTitle: String? = null,
+    onBack: (() -> Unit)? = null,
     content: @Composable (id: String) -> Unit,
 ) {
     val p = LocalPalette.current
-    val drawer = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-    var themeOpen by rememberSaveable { mutableStateOf(false) }
-    fun go(id: String) { themeOpen = false; onNavigate(id); scope.launch { drawer.close() } }
+    val icons = remember(items) { items.associate { it.id to outlineIcon(it.id, it.icon) } }
+    val back = remember { outlineIcon("back", BACK_ICON) }
 
-    BackHandler(enabled = drawer.isOpen || themeOpen || current != items.first().id) {
-        when {
-            drawer.isOpen -> scope.launch { drawer.close() }
-            themeOpen -> themeOpen = false
-            else -> onNavigate(items.first().id)
-        }
+    BackHandler(enabled = onBack != null || current != items.first().id) {
+        if (onBack != null) onBack() else onNavigate(items.first().id)
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawer,
-        drawerContent = {
-            ModalDrawerSheet(drawerContainerColor = p.menu, drawerContentColor = p.ink) {
-                Column(Modifier.fillMaxHeight()) {
-                    Text(appName, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = p.ink,
-                        modifier = Modifier.padding(start = 28.dp, top = 24.dp, bottom = 16.dp))
-                    items.forEach { item ->
-                        val on = !themeOpen && item.id == current
-                        NavigationDrawerItem(
-                            label = { Text(item.title, fontSize = 16.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal) },
-                            selected = on,
-                            onClick = { go(item.id) },
-                            colors = NavigationDrawerItemDefaults.colors(
-                                selectedContainerColor = p.menuSel, unselectedContainerColor = Color.Transparent,
-                                selectedTextColor = p.ink, unselectedTextColor = p.ink,
-                            ),
-                            modifier = Modifier.padding(horizontal = 12.dp),
-                        )
+    Scaffold(
+        containerColor = p.bg,
+        contentWindowInsets = WindowInsets(0),
+        topBar = {
+            Column(Modifier.background(p.header)) {
+                Box(Modifier.statusBarsPadding().fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
+                    val title = subTitle ?: items.firstOrNull { it.id == current }?.title.orEmpty()
+                    Text(title, color = p.headerInk, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 56.dp))
+                    if (onBack != null) {
+                        Box(
+                            Modifier.align(Alignment.CenterStart).padding(start = 4.dp).size(48.dp).clip(RoundedCornerShape(24.dp))
+                                .clickable(onClick = onBack).semantics { contentDescription = "Back" },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(back, contentDescription = null, tint = p.headerInk) }
                     }
-                    Box(Modifier.weight(1f).fillMaxWidth().testTag("kit_secret").secretTaps(secretTapCount) {
-                        themeOpen = true; scope.launch { drawer.close() }
-                    })
                 }
+                Box(Modifier.fillMaxWidth().height(3.dp).background(p.accent))
             }
         },
-    ) {
-        Scaffold(
-            containerColor = p.bg,
-            topBar = {
-                Column {
-                    TopAppBar(
-                        title = { Text(if (themeOpen) "Theme" else items.firstOrNull { it.id == current }?.title ?: appName, fontWeight = FontWeight.SemiBold) },
-                        navigationIcon = {
-                            IconButton(onClick = { scope.launch { drawer.open() } }) { Icon(Icons.Filled.Menu, contentDescription = "Menu") }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = p.header, titleContentColor = p.headerInk, navigationIconContentColor = p.headerInk,
-                        ),
-                    )
-                    Box(Modifier.fillMaxWidth().height(3.dp).background(p.accent))
+        bottomBar = {
+            Column(Modifier.background(p.surface)) {
+                Box(Modifier.fillMaxWidth().height(1.dp).background(p.line))
+                Row(Modifier.fillMaxWidth().height(64.dp)) {
+                    items.forEach { item ->
+                        val on = item.id == current
+                        val color = if (on) p.accent else p.muted
+                        Column(
+                            Modifier.weight(1f).fillMaxHeight()
+                                .clickable(role = Role.Tab) { onNavigate(item.id) }
+                                .semantics { selected = on; contentDescription = item.label },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Box(
+                                Modifier.size(width = 56.dp, height = 30.dp).clip(RoundedCornerShape(15.dp))
+                                    .background(if (on) p.accentSoft else Color.Transparent),
+                                contentAlignment = Alignment.Center,
+                            ) { Icon(icons.getValue(item.id), contentDescription = null, tint = color) }
+                            Spacer(Modifier.height(4.dp))
+                            Text(item.label, color = color, fontSize = 11.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
+                        }
+                    }
                 }
-            },
-        ) { pad ->
-            Box(Modifier.padding(pad).fillMaxSize().imePadding()) {
-                if (themeOpen) ThemeEditorScreen(themeStore) else content(current)
+                Spacer(Modifier.navigationBarsPadding())
             }
-        }
+        },
+    ) { pad ->
+        Box(Modifier.padding(pad).consumeWindowInsets(pad).fillMaxSize().imePadding()) { content(current) }
     }
 }

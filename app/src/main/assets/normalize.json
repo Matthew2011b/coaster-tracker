@@ -273,5 +273,47 @@
    "SBF Visa Group",
    "*"
   ]
+ ],
+ "alpineModels": [
+  [
+   "Wiegand",
+   "Alpine Coaster"
+  ],
+  [
+   "Wiegand",
+   "Summer Toboggan Run"
+  ],
+  [
+   "Wiegand",
+   "Bobkart"
+  ],
+  [
+   "Wiegand",
+   "CoasterKart"
+  ],
+  [
+   "Wiegand",
+   "Sport Coaster"
+  ],
+  [
+   "Brandauer",
+   "*"
+  ],
+  [
+   "Inventex",
+   "*"
+  ],
+  [
+   "Alpine Slide",
+   "*"
+  ],
+  [
+   "Mountain Innovations",
+   "*"
+  ],
+  [
+   "Edsun",
+   "*"
+  ]
  ]
 }

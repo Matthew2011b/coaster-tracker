@@ -36,8 +36,10 @@ class Sync(private val db: Db, private val norm: Normalizer) {
     fun merge(parks: List<JSONObject>, coasters: List<JSONObject>, today: LocalDate): Summary = db.tx { tx ->
         parks.forEach { p ->
             val co = p.optJSONObject("coordinates")
-            db.upsertPark(tx, Park(p.getLong("id"), p.getString("name"), p.optJSONObject("country")?.optString("code"),
-                co?.optDoubleOrNull("lat"), co?.optDoubleOrNull("lon")))
+            val id = p.getLong("id")
+            val old = db.storedPark(tx, id)  // the park list has no city, so keep the one from the snapshot
+            db.upsertPark(tx, Park(id, p.getString("name"), p.optJSONObject("country")?.optString("code"),
+                co?.optDoubleOrNull("lat"), co?.optDoubleOrNull("lon"), old?.city, p.optStringOrNull("state") ?: old?.state))
         }
         var added = 0; var updated = 0; var moved = 0
         coasters.forEach { a ->
@@ -90,7 +92,7 @@ class Sync(private val db: Db, private val norm: Normalizer) {
         repeat(4) {
             val conn = URL(url).openConnection() as HttpURLConnection
             conn.setRequestProperty("Authorization", "Bearer $key")
-            conn.setRequestProperty("User-Agent", "CoasterTracker-Android/1.0")
+            conn.setRequestProperty("User-Agent", "LiftHill-Android/1.0")
             conn.connectTimeout = 20000; conn.readTimeout = 60000
             try {
                 when (val code = conn.responseCode) {

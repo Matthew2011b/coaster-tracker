@@ -29,7 +29,7 @@ class KitTest {
         // An app with fewer tokens takes what it knows and ignores the rest.
         val b = ThemeStore(ctx, Std.all, "b")
         val applied = b.importCode(code)
-        assertEquals(Std.all.size * 2, applied)
+        assertEquals(Std.core.size * 2, applied)  // core colors only: advanced picks stay home while advanced is off
         assertEquals(Color(0xFFCF1F2F), b.get(false, Std.Accent))
         assertEquals(ThemeMode.Dark, b.mode)
 
@@ -53,5 +53,27 @@ class KitTest {
     @Test(expected = IllegalArgumentException::class)
     fun duplicateKeysFailFast() {
         ThemeStore(ctx, Std.all + ColorToken("Accent", "dup", 0xFF000000, 0xFF000000), "d")
+    }
+
+    @Test fun derivedColorsFollowCoreUntilAdvancedIsOn() {
+        val s = ThemeStore(ctx, AppTokens.all, "e")
+        val autoMuted = s.get(false, Std.Muted)
+        s.set(false, Std.Text, Color(0xFF000000))
+        assertNotEquals(autoMuted, s.get(false, Std.Muted))  // follows Text
+        assertEquals(Color.White, s.get(false, Std.HeaderText))  // white on the charcoal header
+        s.set(false, Std.Header, Color(0xFFFFFFFF))
+        assertNotEquals(Color.White, s.get(false, Std.HeaderText))  // dark text on a white header
+
+        // An advanced pick is ignored until advanced is on, and kept when it goes off again.
+        s.set(false, AppTokens.Track, Color(0xFF0B7A75))
+        assertNotEquals(Color(0xFF0B7A75), s.get(false, AppTokens.Track))
+        s.changeAdvanced(true)
+        assertEquals(Color(0xFF0B7A75), s.get(false, AppTokens.Track))
+        assertTrue(s.exportCode().contains("Track=0B7A75"))
+        s.changeAdvanced(false)
+        assertNotEquals(Color(0xFF0B7A75), s.get(false, AppTokens.Track))
+        s.changeAdvanced(true)
+        s.clear(false, AppTokens.Track)
+        assertTrue(s.isDefault(false, AppTokens.Track))
     }
 }

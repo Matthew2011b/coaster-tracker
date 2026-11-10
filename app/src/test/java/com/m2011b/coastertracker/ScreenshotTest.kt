@@ -38,10 +38,7 @@ class ScreenshotTest {
         rule.setContent { KitTheme(theme, AppFonts) { App(theme, repo, FixedLocator(kingsIsland), screen, sub) } }
         return theme to repo
     }
-    private fun go(title: String) {
-        rule.onNodeWithContentDescription("Menu").performClick()
-        rule.onNodeWithText(title).performClick()
-    }
+    private fun go(tab: String) { rule.onNodeWithContentDescription(tab).performClick() }
 
     @Test fun walkthrough() {
         val (theme, _) = start("walk")
@@ -62,7 +59,7 @@ class ScreenshotTest {
         shot("07_stats_most_installations")
 
         go("Parks"); shot("08_parks")
-        go("Nearest new models"); shot("09_nearest")
+        go("Nearest"); shot("09_nearest")
         go("Settings"); shot("10_settings")
 
         rule.runOnUiThread { theme.changeMode(ThemeMode.Dark) }
@@ -72,6 +69,13 @@ class ScreenshotTest {
     @Test fun modelDetail() {
         start("model", "stats", Sub.Model("Vekoma|Suspended Family Coaster"))
         shot("12_model_detail")
+    }
+
+    @Test fun customColors() {
+        val (theme, _) = start("colors", "settings", Sub.Theme)
+        shot("17_custom_colors")
+        rule.runOnUiThread { theme.changeAdvanced(true) }
+        shot("18_custom_colors_advanced")
     }
 
     @Test fun parkDetail() {

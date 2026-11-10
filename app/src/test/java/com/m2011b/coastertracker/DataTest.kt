@@ -27,7 +27,7 @@ class DataTest {
     }
 
     @Test fun filtersHideDefunctAndKiddieButNeverLoggedRides() {
-        val k = KiddieModels(setOf("Zamperla" to "Family Coaster", "Wisdom Rides" to "*"))
+        val k = ModelSet(setOf("Zamperla" to "Family Coaster", "Wisdom Rides" to "*"))
         val f = Filters()
         val kiddie = c("operating", make = "Zamperla", model = "Family Coaster")
         assertTrue(Rules.isKiddie(kiddie, k))
@@ -112,5 +112,68 @@ class DataTest {
         // A later update keeps the clock start.
         s.merge(emptyList(), listOf(coaster(764, "standing_but_not_operating", 716, "Arrow Dynamics", "Suspended Coaster")), today.plusDays(300))
         assertEquals(today.toString(), db.storedCoaster(db.readableDatabase, 764)!!.sbnoSince)
+    }
+
+    @Test fun alpineCoastersNeverCountUnlessLogged() {
+        val a = ModelSet(setOf("Wiegand" to "Alpine Coaster", "Brandauer" to "*"))
+        val f = Filters(includeDefunct = true, includeKiddie = true)
+        val alpine = c("operating", make = "Wiegand", model = "Alpine Coaster")
+        assertTrue(Rules.isAlpine(alpine, a))
+        assertTrue(Rules.isAlpine(c("operating", make = "Brandauer", model = null), a))
+        assertTrue(Rules.isAlpine(c("operating", make = "Wiegand", model = null).copy(name = "Rodelbahn"), a))
+        assertFalse(Rules.isAlpine(c("operating", make = "Wiegand", model = null).copy(name = "BRIO Metro"), a))
+        assertTrue(Rules.isAlpine(c("operating", make = null, model = null).copy(name = "Smoky Mountain Alpine Coaster"), a))
+        assertFalse(Rules.isAlpine(c("operating", make = "Chance Rides", model = "Toboggan").copy(name = "Toboggan"), a))
+        assertFalse(Rules.isAlpine(c("operating", make = "Mack Rides", model = "Bobsled Coaster"), a))
+        assertFalse(Rules.counts(alpine, false, f, today, ModelSet.EMPTY, a))
+        assertTrue(Rules.counts(alpine, true, f, today, ModelSet.EMPTY, a))
+    }
+
+    @Test fun logScreenFollowsTheKiddieFilter() {
+        val r = repo("loggable")
+        val s = r.stats
+        // Every coaster the log screen offers either counts or was logged; no alpine coasters.
+        val shown = s.coasters.filter { s.loggable(it) }
+        assertTrue(shown.none { !s.ridden(it) && Rules.isKiddie(it, r.norm.kiddie) })
+        assertTrue(shown.none { !s.ridden(it) && Rules.isAlpine(it, r.norm.alpine) })
+        // A park with only kiddie rides is hidden, and comes back when kiddie rides are included.
+        val kiddieOnly = s.coasters.filter { it.parkId != null }.groupBy { it.parkId!! }
+            .filterValues { cs -> cs.all { Rules.isKiddie(it, r.norm.kiddie) } && cs.any { s.life(it) == Life.Operating } }.keys
+        assertTrue(kiddieOnly.isNotEmpty())
+        assertTrue(kiddieOnly.none { it in s.loggableParkIds })
+        r.updateFilters(r.filters.copy(includeKiddie = true))
+        assertTrue(kiddieOnly.any { it in r.stats.loggableParkIds })
+    }
+
+    @Test fun usParksShowCityAndState() {
+        val r = repo("place")
+        assertEquals("Mason, OH", r.allParks.first { it.name == "Kings Island" }.place)
+        assertEquals("Sandusky, OH", r.allParks.first { it.name == "Cedar Point" }.place)
+        assertEquals("DE", Park(1, "X", "DE", null, null, "Rust", null).place)
+        assertEquals("OH", Park(1, "X", "US", null, null, null, "Ohio").place)
+    }
+
+    @Test fun upgradeFromV1KeepsRidesAndAddsCityState() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "t_v1.db"
+        ctx.deleteDatabase(name)
+        // Build a v1 database by hand, the way 0.1 left it on the phone.
+        android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(ctx.getDatabasePath(name).apply { parentFile?.mkdirs() }, null).use { db ->
+            db.execSQL("CREATE TABLE parks(id INTEGER PRIMARY KEY, name TEXT NOT NULL, country TEXT, lat REAL, lon REAL)")
+            db.execSQL("CREATE TABLE coasters(id INTEGER PRIMARY KEY, name TEXT NOT NULL, park_id INTEGER, park_name TEXT, country TEXT, " +
+                "location_kind TEXT, status TEXT NOT NULL, sbno_since TEXT, opened TEXT, closed TEXT, make TEXT, model TEXT, " +
+                "height_m REAL, speed_kmh REAL, custom INTEGER NOT NULL DEFAULT 0)")
+            db.execSQL("CREATE TABLE rides(coaster_id INTEGER PRIMARY KEY, ridden_on TEXT)")
+            db.execSQL("CREATE TABLE overrides(coaster_id INTEGER PRIMARY KEY, make TEXT, model TEXT)")
+            db.execSQL("CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT)")
+            db.execSQL("INSERT INTO parks VALUES(716,'Kings Island','US',39.34,-84.27)")
+            db.execSQL("INSERT INTO coasters(id,name,park_id,park_name,country,status,make,model) VALUES(5,'Banshee',716,'Kings Island','US','operating','Bolliger & Mabillard','Inverted Coaster')")
+            db.execSQL("INSERT INTO rides VALUES(5,'2019-07-01')")
+            db.version = 1
+        }
+        val db = Db(ctx, name)
+        assertEquals(mapOf(5L to "2019-07-01"), db.loadRides())
+        assertEquals("Mason, OH", db.loadParks().single { it.id == 716L }.place)
+        assertEquals(2, db.readableDatabase.version)
     }
 }

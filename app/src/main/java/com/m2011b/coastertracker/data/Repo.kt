@@ -28,7 +28,7 @@ class Repo(context: Context, dbName: String = "coasters.db", prefsName: String =
     var stats by mutableStateOf(build())
         private set
 
-    private fun build() = Stats(coasters, parks, rides, filters, today(), norm.kiddie)
+    private fun build() = Stats(coasters, parks, rides, filters, today(), norm.kiddie, norm.alpine)
     private fun refresh(reload: Boolean = false) {
         if (reload) { coasters = db.loadCoasters(); parks = db.loadParks().associateBy { it.id } }
         rides = db.loadRides()

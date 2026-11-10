@@ -131,7 +131,7 @@ fun ModelDetailScreen(repo: Repo, key: String) {
         ListBox(Modifier.weight(1f)) {
             items(rows) { (c, d) ->  // no keys: the order changes once location arrives
                 Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TwoLine(c.name, parkLine(c), Modifier.weight(1f))
+                    TwoLine(c.name, parkLine(c, repo.park(c.parkId)), Modifier.weight(1f))
                     Spacer(Modifier.width(8.dp))
                     if (s.ridden(c)) RiddenMark() else Mono(miles(d).ifEmpty { c.country ?: "" })
                 }
@@ -141,7 +141,8 @@ fun ModelDetailScreen(repo: Repo, key: String) {
     }
 }
 
-private fun parkLine(c: Coaster) = listOfNotNull(c.parkName, c.country?.takeIf { it != "US" }).joinToString(", ")
+private fun parkLine(c: Coaster, park: com.m2011b.coastertracker.data.Park?) =
+    listOfNotNull(c.parkName, park?.place ?: c.country).joinToString(" · ")
 
 // ---------- Parks ----------
 
@@ -165,7 +166,7 @@ fun ParksScreen(repo: Repo, onPark: (Long) -> Unit) {
                 Row(Modifier.fillMaxWidth().clickable { onPark(r.park.id) }.padding(horizontal = 14.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     Mono("${i + 1}", modifier = Modifier.width(30.dp))
-                    TwoLine(r.park.name, listOfNotNull(r.park.country, sub).joinToString(" · "), Modifier.weight(1f))
+                    TwoLine(r.park.name, listOfNotNull(r.park.place, sub).joinToString(" · "), Modifier.weight(1f))
                     Column(horizontalAlignment = Alignment.End) {
                         Mono("$main", size = 20, bold = true, muted = false)
                         Text(if (byModels == 0) "new models" else "unridden", color = LocalPalette.current.muted, fontSize = 11.sp)
