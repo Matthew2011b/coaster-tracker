@@ -32,8 +32,11 @@ any of Matthew's repos rather than starting from a template.
 - `theme/KitTheme.kt`: KitTheme(store, fonts) maps tokens onto Material so stock widgets follow.
   Read colors with `LocalPalette.current` (`p.accent`, `p[AppTokens.X]`), fonts with `LocalKitFonts`.
 - `theme/ThemeEditor.kt`, `theme/ColorPicker.kt`: the Custom colors screen (Settings > "+").
-- `ui/AppShell.kt`: KitAppShell = compact 48dp top bar with centered title and back arrow for
-  sub-screens, accent rule, bottom nav (NavItem icons are SVG path strings on a 24 grid), back handling.
+- `ui/AppShell.kt`: KitAppShell = TrackBar on top, bottom nav (NavItem icons are SVG path strings on a
+  24 grid), back handling. `ui/TrackBar.kt`: 56dp bar with coaster track along the bottom (dip, bunny
+  hill, 49-degree lift hill matching the logo, straight under the title, loop at the right), a train
+  that rolls to the current tab's stop, Title Case title centered over the straight, back arrow at the
+  left, optional BarAction in the loop. Track color is the HeaderTrack token (logo orange by default).
 - `ui/Components.kt`: FieldBox (status-colored input box), FieldLabel, SelectBox, PrimaryButton,
   SecondaryButton, Panel, StatTile, Segmented, KitDialog (text only), FormDialog.
 

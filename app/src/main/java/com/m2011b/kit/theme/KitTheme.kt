@@ -32,6 +32,7 @@ class Palette(private val colors: Map<String, Color>, val isDark: Boolean) {
     val ok get() = this[Std.Ok]
     val err get() = this[Std.Err]
     val accentSoft get() = this[Std.AccentSoft]
+    val headerTrack get() = this[Std.HeaderTrack]
 }
 
 /** Fonts the kit uses. Apps pass their bundled fonts; defaults are the system fonts. */

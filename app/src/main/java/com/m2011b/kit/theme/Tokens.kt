@@ -29,9 +29,17 @@ object Mix {
     /** [a] moved [t] of the way toward [b]. */
     fun toward(a: Color, b: Color, t: Float): Color = lerp(a, b, t)
 
-    private fun contrast(a: Color, b: Color): Float {
+    fun contrast(a: Color, b: Color): Float {
         val (hi, lo) = listOf(a.luminance(), b.luminance()).sortedDescending()
         return (hi + 0.05f) / (lo + 0.05f)
+    }
+
+    /** [fg], nudged toward [toward] until it has at least [min] contrast against [bg]. */
+    fun readableOn(fg: Color, bg: Color, toward: Color, min: Float = 3f): Color {
+        var t = 0f
+        var c = fg
+        while (contrast(c, bg) < min && t < 1f) { t += 0.1f; c = lerp(fg, toward, t) }
+        return c
     }
 
     /** White or near-black, whichever reads better on [bg]. */
@@ -64,9 +72,11 @@ object Std {
         derive = { g, _ -> Mix.onColor(g(Accent)) })
     val AccentSoft = ColorToken("AccentSoft", "Selected tab highlight", 0xFFDCE8F4, 0xFF263A4F,
         derive = { g, d -> Mix.toward(g(Accent), g(Surface), if (d) 0.75f else 0.85f) })
+    val HeaderTrack = ColorToken("HeaderTrack", "Top bar track", 0xFFF0A04B, 0xFFF0A04B,
+        derive = { g, _ -> Mix.readableOn(Color(0xFFF0A04B), g(Header), g(HeaderText)) })  // the logo's orange
     val Err = ColorToken("Err", "Error / warning", 0xFFB3261E, 0xFFFF8A80,
         derive = { _, d -> Color(if (d) 0xFFFF8A80 else 0xFFB3261E) })
 
     val core = listOf(Background, Surface, Text, Header, Accent, Ok)
-    val all = core + listOf(Muted, Line, HeaderText, ButtonText, AccentSoft, Err)
+    val all = core + listOf(Muted, Line, HeaderText, ButtonText, AccentSoft, HeaderTrack, Err)
 }

@@ -49,8 +49,8 @@ fun outlineIcon(name: String, pathData: String): ImageVector =
 private const val BACK_ICON = "M15 5l-7 7 7 7"
 
 /**
- * The standard app frame: a compact top bar with a centered title and an accent rule under it,
- * and a bottom bar with one icon per [items] entry. [subTitle] replaces the tab title while a
+ * The standard app frame: a [TrackBar] on top (coaster track, a train that rolls to the current
+ * tab, centered title, optional [action] in the loop) and a bottom bar with one icon per [items] entry. [subTitle] replaces the tab title while a
  * screen is open on top of a tab, and [showBackArrow] puts a back arrow in the bar. [onBack]
  * handles both the arrow and system back; pass null to let system back leave the app.
  * The app owns its back history and draws the current page in [content].
@@ -63,6 +63,7 @@ fun KitAppShell(
     subTitle: String? = null,
     showBackArrow: Boolean = false,
     onBack: (() -> Unit)? = null,
+    action: BarAction? = null,
     content: @Composable () -> Unit,
 ) {
     val p = LocalPalette.current
@@ -76,19 +77,12 @@ fun KitAppShell(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             Column(Modifier.background(p.header)) {
-                Box(Modifier.statusBarsPadding().fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
-                    val title = subTitle ?: items.firstOrNull { it.id == current }?.title.orEmpty()
-                    Text(title, color = p.headerInk, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 56.dp))
-                    if (showBackArrow && onBack != null) {
-                        Box(
-                            Modifier.align(Alignment.CenterStart).padding(start = 4.dp).size(48.dp).clip(RoundedCornerShape(24.dp))
-                                .clickable(onClick = onBack).semantics { contentDescription = "Back" },
-                            contentAlignment = Alignment.Center,
-                        ) { Icon(back, contentDescription = null, tint = p.headerInk) }
-                    }
-                }
-                Box(Modifier.fillMaxWidth().height(3.dp).background(p.accent))
+                Spacer(Modifier.statusBarsPadding())
+                val title = subTitle ?: items.firstOrNull { it.id == current }?.title.orEmpty()
+                TrackBar(
+                    title = title, stop = items.indexOfFirst { it.id == current }.coerceAtLeast(0), stops = items.size,
+                    onBack = if (showBackArrow) onBack else null, action = action, backIcon = back,
+                )
             }
         },
         bottomBar = {
