@@ -32,7 +32,6 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.TilesOverlay
 import java.io.File
 
 /** One-time osmdroid setup: identify the app to the tile servers and keep the tile cache in app storage. */
@@ -42,6 +41,33 @@ private fun setupOsm(ctx: Context) {
     c.userAgentValue = ctx.packageName
     c.osmdroidBasePath = File(ctx.filesDir, "osmdroid")
     c.osmdroidTileCache = File(ctx.cacheDir, "osm-tiles")
+}
+
+/**
+ * Quiets the standard OSM tiles so the pins stand out: mostly grey, lower contrast, and inverted
+ * for dark mode. (Plain no-key tile styles aren't available; CARTO's now need a key.)
+ */
+private fun mutedTiles(dark: Boolean): android.graphics.ColorMatrixColorFilter {
+    val m = android.graphics.ColorMatrix().apply { setSaturation(0.15f) }
+    val tone = if (dark) {
+        // invert, then squeeze into a dark grey range
+        android.graphics.ColorMatrix(floatArrayOf(
+            -0.62f, 0f, 0f, 0f, 178f,
+            0f, -0.62f, 0f, 0f, 178f,
+            0f, 0f, -0.62f, 0f, 178f,
+            0f, 0f, 0f, 1f, 0f,
+        ))
+    } else {
+        // lift the darks and soften contrast
+        android.graphics.ColorMatrix(floatArrayOf(
+            0.78f, 0f, 0f, 0f, 52f,
+            0f, 0.78f, 0f, 0f, 52f,
+            0f, 0f, 0.78f, 0f, 52f,
+            0f, 0f, 0f, 1f, 0f,
+        ))
+    }
+    m.postConcat(tone)
+    return android.graphics.ColorMatrixColorFilter(m)
 }
 
 /** Round pin with a number, drawn once per (color, number) and cached. */
@@ -97,7 +123,7 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
             },
             modifier = Modifier.fillMaxSize(),
             update = { map ->
-                map.overlayManager.tilesOverlay.setColorFilter(if (dark) TilesOverlay.INVERT_COLORS else null)
+                map.overlayManager.tilesOverlay.setColorFilter(mutedTiles(dark))
                 map.overlays.clear()
                 done.forEach { r ->
                     val lat = r.park.lat ?: return@forEach; val lon = r.park.lon ?: return@forEach
