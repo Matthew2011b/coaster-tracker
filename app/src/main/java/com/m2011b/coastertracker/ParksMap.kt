@@ -26,7 +26,6 @@ import com.m2011b.coastertracker.data.ParkStat
 import com.m2011b.kit.theme.LocalPalette
 import com.m2011b.kit.ui.BoxShape
 import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -43,31 +42,51 @@ private fun setupOsm(ctx: Context) {
     c.osmdroidTileCache = File(ctx.cacheDir, "osm-tiles")
 }
 
+/** The four colors a recolored tile uses (ARGB ints). */
+private data class MapColors(val land: Int, val water: Int, val road: Int, val ink: Int)
+
 /**
- * Quiets the standard OSM tiles so the pins stand out: mostly grey, lower contrast, and inverted
- * for dark mode. (Plain no-key tile styles aren't available; CARTO's now need a key.)
+ * Standard OSM tiles repainted into a plain map: land, water, interstates, and towns plus state
+ * borders. Forests, farmland, parks and minor roads all become land. Each pixel is classified from
+ * OSM Carto's own colors: water is light blue, motorways are the only pink with more blue than green,
+ * state borders are a faint purple, and label text is dark (blended so letters stay smooth).
+ * Plain no-key tile styles aren't available (CARTO's now need a key), so the app does it itself.
+ * Keeps the name "Mapnik" so the raw tile cache is shared across themes.
  */
-private fun mutedTiles(dark: Boolean): android.graphics.ColorMatrixColorFilter {
-    val m = android.graphics.ColorMatrix().apply { setSaturation(0.15f) }
-    val tone = if (dark) {
-        // invert, then squeeze into a dark grey range
-        android.graphics.ColorMatrix(floatArrayOf(
-            -0.62f, 0f, 0f, 0f, 178f,
-            0f, -0.62f, 0f, 0f, 178f,
-            0f, 0f, -0.62f, 0f, 178f,
-            0f, 0f, 0f, 1f, 0f,
-        ))
-    } else {
-        // lift the darks and soften contrast
-        android.graphics.ColorMatrix(floatArrayOf(
-            0.78f, 0f, 0f, 0f, 52f,
-            0f, 0.78f, 0f, 0f, 52f,
-            0f, 0f, 0.78f, 0f, 52f,
-            0f, 0f, 0f, 1f, 0f,
-        ))
+private class PlainTiles(@Volatile var colors: MapColors) : org.osmdroid.tileprovider.tilesource.XYTileSource(
+    "Mapnik", 0, 19, 256, ".png",
+    arrayOf("https://a.tile.openstreetmap.org/", "https://b.tile.openstreetmap.org/", "https://c.tile.openstreetmap.org/"),
+    "© OpenStreetMap contributors",
+) {
+    override fun getDrawable(aFileInputStream: java.io.InputStream?): android.graphics.drawable.Drawable? = recolor(super.getDrawable(aFileInputStream))
+    override fun getDrawable(aFilePath: String?): android.graphics.drawable.Drawable? = recolor(super.getDrawable(aFilePath))
+
+    private fun recolor(d: android.graphics.drawable.Drawable?): android.graphics.drawable.Drawable? {
+        val src = (d as? BitmapDrawable)?.bitmap ?: return d
+        val bmp = if (src.isMutable && src.config == Bitmap.Config.ARGB_8888) src else src.copy(Bitmap.Config.ARGB_8888, true)
+        val w = bmp.width; val h = bmp.height
+        val px = IntArray(w * h)
+        bmp.getPixels(px, 0, w, 0, 0, w, h)
+        val c = colors
+        for (i in px.indices) px[i] = classify(px[i], c)
+        bmp.setPixels(px, 0, w, 0, 0, w, h)
+        return org.osmdroid.tileprovider.ReusableBitmapDrawable(bmp)
     }
-    m.postConcat(tone)
-    return android.graphics.ColorMatrixColorFilter(m)
+
+    private fun classify(p: Int, c: MapColors): Int {
+        val r = (p shr 16) and 0xFF; val g = (p shr 8) and 0xFF; val b = p and 0xFF
+        if (b - r > 28 && g - r > 18) return c.water
+        val sum = r + g + b
+        var base = if (r - g > 50 && b > g && r > 180) c.road else c.land
+        if (r - g >= 8 && b - g >= 4 && r - g < 40 && sum < 665) base = c.ink  // state border
+        val t = ((450 - sum) / 220f).coerceIn(0f, 1f)                         // label text
+        return if (t > 0f) blend(base, c.ink, t) else base
+    }
+
+    private fun blend(a: Int, b: Int, t: Float): Int {
+        fun ch(s: Int) = (((a shr s) and 0xFF) * (1 - t) + ((b shr s) and 0xFF) * t).toInt()
+        return (0xFF shl 24) or (ch(16) shl 16) or (ch(8) shl 8) or ch(0)
+    }
 }
 
 /** Round pin with a number, drawn once per (color, number) and cached. */
@@ -107,14 +126,16 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
     var picked by remember { mutableStateOf<ParkStat?>(null) }
     var framed by remember { mutableStateOf(false) }
     val accent = p.accent.toArgb(); val btnInk = p.btnInk.toArgb(); val newInk = p[AppTokens.NewInk].toArgb()
-    val ok = p.ok.toArgb(); val dark = p.isDark
+    val ok = p.ok.toArgb()
+    val colors = MapColors(p.bg.toArgb(), p[AppTokens.MapWater].toArgb(), p[AppTokens.MapRoad].toArgb(), p[AppTokens.MapInk].toArgb())
+    val tiles = remember { PlainTiles(colors) }
 
     Box(modifier.clip(BoxShape).border(1.dp, p.line, BoxShape)) {
         AndroidView(
             factory = { c ->
                 setupOsm(c)
                 MapView(c).apply {
-                    setTileSource(TileSourceFactory.MAPNIK)
+                    setTileSource(tiles)
                     setMultiTouchControls(true)
                     zoomController.setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER)
                     minZoomLevel = 3.0
@@ -123,7 +144,9 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
             },
             modifier = Modifier.fillMaxSize(),
             update = { map ->
-                map.overlayManager.tilesOverlay.setColorFilter(mutedTiles(dark))
+                if (tiles.colors != colors) { tiles.colors = colors; map.tileProvider.clearTileCache() }  // theme changed
+                map.overlayManager.tilesOverlay.loadingBackgroundColor = colors.land
+                map.overlayManager.tilesOverlay.loadingLineColor = colors.land
                 map.overlays.clear()
                 done.forEach { r ->
                     val lat = r.park.lat ?: return@forEach; val lon = r.park.lon ?: return@forEach
