@@ -114,7 +114,8 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
     }
 
     val land = p.bg; val water = p[AppTokens.MapWater]; val road = p[AppTokens.MapRoad]; val ink = p[AppTokens.MapInk]
-    val pinNew = p[AppTokens.NewInk]; val pinOther = p.accent; val okC = p.ok; val you = p.headerTrack
+    val pinNew = p.accent; val pinOther = p.accent;  // pins stay accent so they never read as the orange you-are-here dot
+    val okC = p.ok; val you = p.headerTrack
     val labelStyle = TextStyle(color = ink, fontSize = 11.sp, fontFamily = sans)
     val pinStyle = TextStyle(color = p.btnInk, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = sans)
 

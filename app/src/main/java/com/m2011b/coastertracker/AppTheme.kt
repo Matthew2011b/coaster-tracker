@@ -1,6 +1,7 @@
 package com.m2011b.coastertracker
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -11,10 +12,16 @@ import com.m2011b.kit.theme.Std
 
 /** This app's colors. All derive from the core colors unless "Advanced colors" is on. */
 object AppTokens {
-    val NewBg = ColorToken("NewBg", "New model highlight", 0xFFFFF4E5, 0xFF3A2C17,
-        derive = { g, d -> Mix.toward(g(Std.Accent), g(Std.Surface), if (d) 0.8f else 0.9f) })
-    val NewInk = ColorToken("NewInk", "New model text", 0xFF8A4B00, 0xFFFFC27A,
-        derive = { g, _ -> g(Std.Accent) })
+    /** The track orange with some of its color taken out, the base for the new-model highlight. */
+    private fun mutedOrange(g: (ColorToken) -> Color): Color {
+        val o = g(Std.HeaderTrack)
+        val grey = Color(o.luminance(), o.luminance(), o.luminance())
+        return Mix.toward(o, grey, 0.4f)
+    }
+    val NewBg = ColorToken("NewBg", "New model highlight", 0xFFF6EDE3, 0xFF3A3129,
+        derive = { g, d -> Mix.toward(mutedOrange(g), g(Std.Surface), if (d) 0.78f else 0.82f) })
+    val NewInk = ColorToken("NewInk", "New model text", 0xFF8A5A2E, 0xFFE0B58A,
+        derive = { g, d -> Mix.toward(mutedOrange(g), g(Std.Text), if (d) 0.2f else 0.5f) })
     val Track = ColorToken("Track", "Progress bar track", 0xFFE4E6E7, 0xFF33373A,
         derive = { g, _ -> Mix.toward(g(Std.Text), g(Std.Surface), 0.88f) })
 
