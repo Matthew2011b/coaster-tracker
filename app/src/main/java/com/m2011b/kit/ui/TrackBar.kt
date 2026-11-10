@@ -1,7 +1,7 @@
 package com.m2011b.kit.ui
 
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -121,13 +121,30 @@ fun TrackBar(title: String, stop: Int, stops: Int, onBack: (() -> Unit)?, action
         val measure = remember(path) { PathMeasure().apply { setPath(path, false) } }
         val stopList = remember(measure, stops) { trainStops(g, measure, scale, stops) }
         val target = stopList[stop.coerceIn(0, stopList.lastIndex)]
-        val front by animateFloatAsState(target, tween(650, easing = FastOutSlowInEasing), label = "train")
+        // The train only ever runs right. Its position is an odometer around a cycle: the track, then an
+        // off-screen stretch one train long, so going "back" a tab means running off the right edge and
+        // coming in again from the left. Moves are 650 ms for one tab; longer ones cap the top speed at
+        // twice the one-tab speed, so they take longer instead of whipping across.
+        val trainLen = (3 * 9f + 2 * 2.2f + 6f) * scale
+        val cycle = measure.length + trainLen
+        val oneTab = (if (stopList.size > 2) stopList[2] - stopList[1] else measure.length / 4).coerceAtLeast(1f)
+        val odo = remember(measure) { Animatable(target) }
+        LaunchedEffect(target, cycle) {
+            val from = odo.value
+            val ahead = ((target - from) % cycle + cycle) % cycle  // distance forward to the stop
+            if (ahead < 0.5f) return@LaunchedEffect
+            val ms = (650 * maxOf(1f, ahead / (2 * oneTab))).toInt()
+            odo.animateTo(from + ahead, tween(ms, easing = FastOutSlowInEasing))
+            odo.snapTo(odo.value % cycle)
+        }
+        val front = odo.value
 
         Canvas(Modifier.fillMaxSize()) {
             drawPath(path, p.headerTrack, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
             val car = 9.dp.toPx(); val gap = 2.2.dp.toPx(); val h = 6.5.dp.toPx(); val lift = 1.2.dp.toPx()
             repeat(3) { i ->
-                val d = (front - i * (car + gap) - car / 2).coerceIn(0f, measure.length - 1f)
+                val d = ((front - i * (car + gap) - car / 2) % cycle + cycle) % cycle
+                if (d > measure.length - 1f) return@repeat  // off the edge, between laps
                 val a = measure.getPosition(d); val b2 = measure.getPosition(d + 0.5f)
                 val ang = atan2(b2.y - a.y, b2.x - a.x)
                 translate(a.x, a.y) {

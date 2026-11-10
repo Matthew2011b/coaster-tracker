@@ -95,6 +95,7 @@ class ScreenshotTest {
     @Test fun parksMap() {
         start("map", "parks")
         Basemap.get(ApplicationProvider.getApplicationContext())  // warm the bundled map
+        MapConfig.pulse = false
         rule.onNodeWithContentDescription("Map view").performClick()
         rule.onNodeWithContentDescription("List view").assertExists()
         Thread.sleep(300); rule.waitForIdle()
@@ -112,6 +113,24 @@ class ScreenshotTest {
         rule.runOnUiThread { repo.updateFilters(repo.filters.copy(usOnly = true)) }
         rule.onNodeWithText("Worldwide").assertDoesNotExist()
         shot("19_parks_us_only")
+    }
+
+    /** Accent candidates side by side (light and dark), for picking a default. */
+    @Test fun accentOptions() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val opts = listOf("blue" to (0xFF1F5C99 to 0xFF5B9BD5), "teal" to (0xFF16706B to 0xFF4FB3AB), "charcoal" to (0xFF3A3F44 to 0xFFC9CDD1))
+        val theme = ThemeStore(ctx, AppTokens.all, "theme_accent")
+        val repo = Repo(ctx, "shot_accent.db", "prefs_accent") { LocalDate.of(2026, 11, 9) }
+        repo.importCsv(javaClass.classLoader!!.getResource("matthew-rides.csv").readText())
+        rule.setContent { KitTheme(theme, AppFonts) { App(theme, repo, FixedLocator(kingsIsland), "stats", null) } }
+        for ((name, c) in opts) for (dark in listOf(false, true)) {
+            rule.runOnUiThread {
+                theme.set(false, com.m2011b.kit.theme.Std.Accent, androidx.compose.ui.graphics.Color(c.first))
+                theme.set(true, com.m2011b.kit.theme.Std.Accent, androidx.compose.ui.graphics.Color(c.second))
+                theme.changeMode(if (dark) ThemeMode.Dark else ThemeMode.Light)
+            }
+            shot("accent_${name}_${if (dark) "dark" else "light"}")
+        }
     }
 
     @Test fun customColors() {

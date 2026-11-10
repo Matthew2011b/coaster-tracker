@@ -60,7 +60,8 @@ class KitTest {
         val autoMuted = s.get(false, Std.Muted)
         s.set(false, Std.Text, Color(0xFF000000))
         assertNotEquals(autoMuted, s.get(false, Std.Muted))  // follows Text
-        assertEquals(Color.White, s.get(false, Std.HeaderText))  // white on the charcoal header
+        s.set(false, Std.Header, Color(0xFF25282A))
+        assertEquals(Color.White, s.get(false, Std.HeaderText))  // white on a charcoal header
         s.set(false, Std.Header, Color(0xFFFFFFFF))
         assertNotEquals(Color.White, s.get(false, Std.HeaderText))  // dark text on a white header
 

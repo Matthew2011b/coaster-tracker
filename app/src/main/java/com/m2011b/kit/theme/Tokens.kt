@@ -55,10 +55,10 @@ object Mix {
  * Six are core (what users edit); the rest derive from them unless "Advanced colors" is on.
  */
 object Std {
-    val Background = ColorToken("Background", "Page background", 0xFFF3F3F3, 0xFF141617)
+    val Background = ColorToken("Background", "Page background", 0xFFDADAD7, 0xFF141617)
     val Surface = ColorToken("Surface", "Boxes, lists & nav bar", 0xFFFFFFFF, 0xFF1F2224)
     val Text = ColorToken("Text", "Text & icons", 0xFF25282A, 0xFFF3F3F3)
-    val Header = ColorToken("Header", "Top bar", 0xFF25282A, 0xFF000000)
+    val Header = ColorToken("Header", "Top bar", 0xFFDADAD7, 0xFF141617)
     val Accent = ColorToken("Accent", "Accent (buttons, selected tab)", 0xFF1F5C99, 0xFF5B9BD5)
     val Ok = ColorToken("Ok", "Ridden & complete", 0xFF1E7B46, 0xFF5CCB8A)
 
@@ -73,7 +73,7 @@ object Std {
     val AccentSoft = ColorToken("AccentSoft", "Selected tab highlight", 0xFFDCE8F4, 0xFF263A4F,
         derive = { g, d -> Mix.toward(g(Accent), g(Surface), if (d) 0.75f else 0.85f) })
     val HeaderTrack = ColorToken("HeaderTrack", "Top bar track", 0xFFF0A04B, 0xFFF0A04B,
-        derive = { g, _ -> Mix.readableOn(Color(0xFFF0A04B), g(Header), g(HeaderText)) })  // the logo's orange
+        derive = { _, _ -> Color(0xFFF0A04B) })  // the logo's orange, in both modes
     val Err = ColorToken("Err", "Error / warning", 0xFFB3261E, 0xFFFF8A80,
         derive = { _, d -> Color(if (d) 0xFFFF8A80 else 0xFFB3261E) })
 

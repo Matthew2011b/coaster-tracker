@@ -1,5 +1,10 @@
 package com.m2011b.coastertracker
 
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -63,6 +68,11 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
     val density = LocalDensity.current.density
     val measurer = rememberTextMeasurer()
     val sans = LocalKitFonts.current.sans
+    val pulse = if (MapConfig.pulse) {
+        rememberInfiniteTransition(label = "you").animateFloat(
+            0f, 1f, infiniteRepeatable(tween(2000, easing = LinearOutSlowInEasing)), label = "pulse",
+        ).value
+    } else 0f
     val map by produceState<Basemap?>(null) { value = withContext(Dispatchers.Default) { Basemap.get(ctx) } }
 
     // View: world point at the center and zoom (256 dp tiles at zoom 0), saved across visits.
@@ -104,7 +114,7 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
     }
 
     val land = p.bg; val water = p[AppTokens.MapWater]; val road = p[AppTokens.MapRoad]; val ink = p[AppTokens.MapInk]
-    val pinNew = p[AppTokens.NewInk]; val pinOther = p.accent; val okC = p.ok
+    val pinNew = p[AppTokens.NewInk]; val pinOther = p.accent; val okC = p.ok; val you = p.headerTrack
     val labelStyle = TextStyle(color = ink, fontSize = 11.sp, fontFamily = sans)
     val pinStyle = TextStyle(color = p.btnInk, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = sans)
 
@@ -206,6 +216,16 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
                 val t = measurer.measure("${pin.n}", pinStyle)
                 drawText(t, topLeft = Offset(at.x - t.size.width / 2f, at.y - t.size.height / 2f))
             }
+
+            // You are here: brand-orange dot with a soft halo, on top of everything.
+            here?.let { h ->
+                val at = toScreen(Basemap.x(h.second), Basemap.y(h.first))
+                drawCircle(you.copy(alpha = 0.18f), 11 * density, at)
+                // slow pulse: a ring that grows outward and fades, every 2 s
+                drawCircle(you.copy(alpha = 0.45f * (1 - pulse)), (7 + 17 * pulse) * density, at, style = Stroke(2 * density))
+                drawCircle(p.surface, 7 * density, at)
+                drawCircle(you, 5.2f * density, at)
+            }
         }
 
         picked?.let { r ->
@@ -224,5 +244,8 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
         }
     }
 }
+
+/** Test hook: screenshot tests turn the never-ending location pulse off so the UI can go idle. */
+internal object MapConfig { @Volatile var pulse = true }
 
 private fun log2(v: Double) = ln(v) / ln(2.0)
