@@ -12,12 +12,14 @@ import androidx.compose.runtime.*
 import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.unit.IntOffset
 import com.m2011b.coastertracker.data.Repo
 import com.m2011b.kit.theme.KitTheme
 import com.m2011b.kit.theme.ThemeEditorScreen
 import com.m2011b.kit.theme.ThemeStore
+import com.m2011b.kit.ui.BarAction
 import com.m2011b.kit.ui.KitAppShell
 import com.m2011b.kit.ui.NavItem
 
@@ -43,6 +45,9 @@ private val NAV = listOf(
     NavItem("settings", "Settings", "Settings", "M4 6h10 M18 6h2 M16 4v4 M4 12h4 M12 12h8 M10 10v4 M4 18h12 M18 16v4"),
 )
 
+private const val MAP_ICON = "M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z M9 4v14 M15 6v14"
+private const val LIST_ICON = "M8 6h13 M8 12h13 M8 18h13 M3.5 6h.01 M3.5 12h.01 M3.5 18h.01"
+
 /** A screen opened on top of a tab. */
 sealed interface Sub {
     data class Model(val key: String) : Sub
@@ -67,6 +72,7 @@ internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: S
     var nextId by remember { mutableIntStateOf(2) }
     var goingBack by remember { mutableStateOf(false) }
     val saved = rememberSaveableStateHolder()
+    var parksMap by rememberSaveable { mutableStateOf(false) }
     var here by remember { mutableStateOf<LatLon?>(null) }
     val askPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (ok) locator.locate { here = it }
@@ -103,6 +109,9 @@ internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: S
             onNavigate = { tab -> if (tab != cur.tab || cur.sub != null) push(tab, null) },
             subTitle = subTitle, showBackArrow = cur.sub != null,
             onBack = if (canGoBack) ({ back() }) else null,
+            action = if (cur.tab == "parks" && cur.sub == null) {
+                if (parksMap) BarAction("List view", LIST_ICON) { parksMap = false } else BarAction("Map view", MAP_ICON) { parksMap = true }
+            } else null,
         ) {
             AnimatedContent(
                 targetState = cur,
@@ -129,7 +138,7 @@ internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: S
                         null -> when (e.tab) {
                             "log" -> LogScreen(repo)
                             "stats" -> StatsScreen(repo, null, onModel = { open(Sub.Model(it)) }, onMake = { open(Sub.Make(it)) })
-                            "parks" -> ParksScreen(repo) { open(Sub.ParkDetail(it)) }
+                            "parks" -> ParksScreen(repo, parksMap) { open(Sub.ParkDetail(it)) }
                             "nearest" -> NearestScreen(repo, refreshLocation) { open(Sub.Model(it)) }
                             else -> SettingsScreen(repo, theme) { open(Sub.Theme) }
                         }

@@ -147,7 +147,7 @@ private fun parkLine(c: Coaster, park: com.m2011b.coastertracker.data.Park?) =
 // ---------- Parks ----------
 
 @Composable
-fun ParksScreen(repo: Repo, onPark: (Long) -> Unit) {
+fun ParksScreen(repo: Repo, showMap: Boolean = false, onPark: (Long) -> Unit) {
     val s = repo.stats
     var byModels by rememberSaveable { mutableIntStateOf(0) }
     var region by rememberSaveable { mutableIntStateOf(0) }
@@ -160,6 +160,11 @@ fun ParksScreen(repo: Repo, onPark: (Long) -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Segmented(listOf("Unridden models", "Unridden coasters"), byModels) { byModels = it }
         if (!usLocked) Segmented(listOf("United States", "Worldwide"), region) { region = it }
+        if (showMap) {
+            val all = remember(s, region, usLocked) { s.parkStats(usOnly = usLocked || region == 0, includeDone = true) }
+            ParksMap(all.filter { it.unridden > 0 }, all.filter { it.unridden == 0 }, byModels == 0, onPark, Modifier.weight(1f).fillMaxWidth())
+            return@Column
+        }
         ListBox(Modifier.weight(1f)) {
             itemsIndexed(rows, key = { _, r -> r.park.id }) { i, r ->
                 val main = if (byModels == 0) r.newModels else r.unridden

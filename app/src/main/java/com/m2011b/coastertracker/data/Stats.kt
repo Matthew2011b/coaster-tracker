@@ -83,14 +83,15 @@ class Stats(
         return Rules.miles(here.first, here.second, p.lat, p.lon)
     }
 
-    fun parkStats(usOnly: Boolean): List<ParkStat> {
+    /** Parks with something left to ride; [includeDone] also returns parks where everything counted is ridden. */
+    fun parkStats(usOnly: Boolean, includeDone: Boolean = false): List<ParkStat> {
         val never = models.filter { it.ridden == 0 }.map { it.key }.toSet()
         return counted.filter { it.parkId != null }.groupBy { it.parkId!! }.mapNotNull { (pid, cs) ->
             val park = parks[pid] ?: return@mapNotNull null
             if (usOnly && park.country != "US") return@mapNotNull null
             val open = cs.filter { !ridden(it) && life(it) == Life.Operating }
             ParkStat(park, open.mapNotNull { it.modelKey }.filter { it in never }.toSet().size, open.size, cs.count { ridden(it) })
-        }.filter { it.unridden > 0 }
+        }.filter { it.unridden > 0 || (includeDone && it.ridden > 0) }
     }
 
     /** For each never-ridden model, the closest operating installation. */

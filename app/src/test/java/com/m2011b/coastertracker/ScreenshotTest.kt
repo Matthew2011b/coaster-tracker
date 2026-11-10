@@ -92,6 +92,15 @@ class ScreenshotTest {
         rule.onNodeWithText("Manufacturers").assertIsSelected()  // back from another tab lands on the same view
     }
 
+    @Test fun parksMap() {
+        start("map", "parks")
+        rule.onNodeWithContentDescription("Map view").performClick()
+        rule.onNodeWithContentDescription("List view").assertExists()
+        shot("21_parks_map")
+        rule.onNodeWithContentDescription("List view").performClick()
+        rule.onNodeWithText("Six Flags Great America").assertExists()
+    }
+
     @Test fun usOnlyHidesTheRegionToggle() {
         val (_, repo) = start("usonly", "parks")
         rule.onNodeWithText("Worldwide").assertExists()

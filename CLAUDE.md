@@ -56,7 +56,8 @@ any of Matthew's repos rather than starting from a template.
   Alpine/mountain coasters (normalize.json alpineModels + name rule) never count unless logged.
   The log screen hides kiddie rides and kiddie-only parks when kiddie is filtered out.
   US parks show "City, ST": state comes from /v1/parks, city only from /v1/parks/{id} (snapshot only).
-- Screens: LogScreen.kt, Screens.kt (Stats, Model detail, Parks, Park detail, Nearest), SettingsScreen.kt.
+- Screens: LogScreen.kt, Screens.kt (Stats, Model detail, Parks, Park detail, Nearest), ParksMap.kt (osmdroid
+  OpenStreetMap view, toggled by the loop button on Parks; no API key, keep the OSM credit), SettingsScreen.kt.
 - Coaster data is Coasterpedia (CC BY-SA 4.0): keep the credit line on Settings.
 - Building here: Maven Central rate-limits shared IPs; a local Gradle init script points at Google's mirror.
 
