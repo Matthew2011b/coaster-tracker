@@ -1,5 +1,6 @@
 package com.m2011b.coastertracker.data
 
+import com.m2011b.coastertracker.Units
 import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -8,11 +9,19 @@ import java.time.LocalDate
 
 /** App state holder: loads the database, exposes [stats], and applies every change. */
 class Repo(context: Context, dbName: String = "coasters.db", prefsName: String = "coaster_prefs", private val today: () -> LocalDate = { LocalDate.now() }) {
-    private val db = Db(context, dbName)
+    private val db = Db(context, dbName).also { it.mergeBundled(today()) }  // fresher data shipped in an app update
     private val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
     val norm = Normalizer(context.assets.open("normalize.json").bufferedReader().use { it.readText() })
 
-    var filters by mutableStateOf(Filters(prefs.getBoolean("inc_defunct", false), prefs.getBoolean("inc_kiddie", false), prefs.getBoolean("us_only", false)))
+    // Carnival was part of the kiddie switch before 0.12, so it starts from that setting.
+    var filters by mutableStateOf(Filters(
+        includeDefunct = prefs.getBoolean("inc_defunct", false), includeKiddie = prefs.getBoolean("inc_kiddie", false),
+        usOnly = prefs.getBoolean("us_only", false),
+        includeCarnival = prefs.getBoolean("inc_carnival", prefs.getBoolean("inc_kiddie", false)),
+        includeAlpine = prefs.getBoolean("inc_alpine", false),
+    ))
+        private set
+    var metric by mutableStateOf(prefs.getBoolean("metric", false).also { Units.metric = it })
         private set
     var apiKey by mutableStateOf(prefs.getString("api_key", "") ?: "")
         private set
@@ -50,8 +59,11 @@ class Repo(context: Context, dbName: String = "coasters.db", prefsName: String =
         refresh(reload = true); return id
     }
 
+    fun updateMetric(on: Boolean) { metric = on; Units.metric = on; prefs.edit().putBoolean("metric", on).apply() }
+
     fun updateFilters(f: Filters) {
-        prefs.edit().putBoolean("inc_defunct", f.includeDefunct).putBoolean("inc_kiddie", f.includeKiddie).putBoolean("us_only", f.usOnly).apply()
+        prefs.edit().putBoolean("inc_defunct", f.includeDefunct).putBoolean("inc_kiddie", f.includeKiddie).putBoolean("us_only", f.usOnly)
+            .putBoolean("inc_carnival", f.includeCarnival).putBoolean("inc_alpine", f.includeAlpine).apply()
         filters = f; stats = build()
     }
 

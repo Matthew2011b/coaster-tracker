@@ -109,9 +109,7 @@ class Stats(
      * filters allow (kiddie rides only when they're included, never alpine coasters).
      */
     fun loggable(c: Coaster): Boolean = ridden(c) || (
-        (life(c) == Life.Operating || life(c) == Life.Sbno) && !Rules.isAlpine(c, alpine) &&
-            (!filters.usOnly || c.country == "US") &&
-            (filters.includeKiddie || !Rules.isKiddie(c, kiddie)))
+        (life(c) == Life.Operating || life(c) == Life.Sbno) && !Rules.filteredOut(c, filters, kiddie, alpine))
 
     /** Parks with at least one loggable coaster. */
     val loggableParkIds: Set<Long> by lazy { coasters.filter { it.parkId != null && loggable(it) }.map { it.parkId!! }.toSet() }

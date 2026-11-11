@@ -49,12 +49,16 @@ any of Matthew's repos rather than starting from a template.
 
 ## App-specific code (com.m2011b.coastertracker)
 - `data/`: Db (SQLite v2, seeded from assets/snapshot.json; v2 added parks.city/state), Repo (state + actions), Stats (all screen math),
-  Rules (SBNO 9-month clock, kiddie/carnival filter, alpine exclusion, what counts), Normalizer (assets/normalize.json aliases and
+  Rules (SBNO 9-month clock, kiddie/carnival/mountain filters, what counts), Normalizer (assets/normalize.json aliases and
   model merges), Sync (Coasterpedia pull with the user's own API key), Csv (import/export).
 - Data rules: make/model never change on updates (only blanks fill); user edits live in `overrides`;
   logged rides always count, whatever the filters; a coaster is SBNO only after 270 days standing.
-  Alpine/mountain coasters (normalize.json alpineModels + name rule) never count unless logged.
-  The log screen hides kiddie rides and kiddie-only parks when kiddie is filtered out.
+  Three separate filter switches (all off by default): kiddie (kiddie model list, or under ~20 ft and under
+  ~25 mph or no speed), carnival (Coasterpedia location_kind travelling), mountain (normalize.json alpineModels
+  + name rule). Rules.filteredOut is the single check. The log screen hides filtered coasters and parks left empty.
+  Distances: Units.metric (Settings "Distances in kilometers"); miles() formats per that setting.
+  App updates: Db.mergeBundled merges a newer assets/snapshot.json ("generated" date > meta data_as_of) into
+  existing installs with the same rules as Sync; bump "generated" when shipping new data.
   US parks show "City, ST": state comes from /v1/parks, city only from /v1/parks/{id} (snapshot only).
 - Screens: LogScreen.kt, Screens.kt (Stats, Model detail, Parks, Park detail, Nearest), ParksMap.kt (map view,
   toggled by the loop button on Parks) drawing Basemap.kt / assets/basemap.bin: Natural Earth (public domain) land,

@@ -1,5 +1,8 @@
 package com.m2011b.coastertracker
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -90,10 +93,14 @@ fun shortMake(make: String?): String = when (make) {
     else -> make
 }
 
-fun miles(d: Double?): String = when {
-    d == null -> ""
-    d < 10 -> String.format(Locale.US, "%.1f mi", d)
-    else -> String.format(Locale.US, "%,d mi", d.toLong())
+/** Distance display units, set from Settings. Compose state, so text using [miles] updates on change. */
+object Units { var metric by mutableStateOf(false) }
+
+/** A distance given in miles, shown in miles or km per the Settings choice. */
+fun miles(d: Double?): String {
+    if (d == null) return ""
+    val (v, u) = if (Units.metric) d * 1.609344 to "km" else d to "mi"
+    return if (v < 10) String.format(Locale.US, "%.1f %s", v, u) else String.format(Locale.US, "%,d %s", v.toLong(), u)
 }
 
 /** Coaster row used on the log and park screens: tap selects, long-press edits. */

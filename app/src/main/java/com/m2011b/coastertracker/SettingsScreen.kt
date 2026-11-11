@@ -88,9 +88,16 @@ fun SettingsScreen(repo: Repo, theme: ThemeStore, onCustomColors: () -> Unit) {
         Panel(Modifier.fillMaxWidth()) {
             ToggleRow("Include defunct coasters", repo.filters.includeDefunct) { repo.updateFilters(repo.filters.copy(includeDefunct = it)) }
             Spacer(Modifier.height(4.dp))
-            ToggleRow("Include kiddie and carnival", repo.filters.includeKiddie) { repo.updateFilters(repo.filters.copy(includeKiddie = it)) }
+            Spacer(Modifier.height(4.dp))
+            ToggleRow("Include kiddie coasters", repo.filters.includeKiddie) { repo.updateFilters(repo.filters.copy(includeKiddie = it)) }
+            Spacer(Modifier.height(4.dp))
+            ToggleRow("Include carnival coasters", repo.filters.includeCarnival) { repo.updateFilters(repo.filters.copy(includeCarnival = it)) }
+            Spacer(Modifier.height(4.dp))
+            ToggleRow("Include mountain coasters", repo.filters.includeAlpine) { repo.updateFilters(repo.filters.copy(includeAlpine = it)) }
             Spacer(Modifier.height(4.dp))
             ToggleRow("US parks only", repo.filters.usOnly) { repo.updateFilters(repo.filters.copy(usOnly = it)) }
+            Spacer(Modifier.height(4.dp))
+            ToggleRow("Distances in kilometers", repo.metric) { repo.updateMetric(it) }
         }
 
         Panel(Modifier.fillMaxWidth()) {

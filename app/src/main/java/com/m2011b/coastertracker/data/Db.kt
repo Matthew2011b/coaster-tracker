@@ -60,6 +60,41 @@ class Db(private val context: Context, name: String = "coasters.db") : SQLiteOpe
         setMeta(db, "data_as_of", o.optString("generated"))
     }
 
+    /**
+     * Merges the snapshot bundled with this version of the app into an existing database, when it is
+     * newer than the data already here (an app update shipping fresher coaster data). Same rules as
+     * the online update: coasters are added or moved, the SBNO clock carries over, make/model never
+     * change once set (only blanks fill), and rides, edits and custom coasters are untouched.
+     * Returns true if it merged.
+     */
+    fun mergeBundled(today: java.time.LocalDate): Boolean {
+        val o = snapshot()
+        val generated = o.optString("generated")
+        val have = meta("data_as_of")
+        if (generated.isEmpty() || (have != null && have >= generated)) return false
+        tx { db ->
+            val parks = o.getJSONArray("parks")
+            for (i in 0 until parks.length()) {
+                val p = parks.getJSONObject(i).toPark()
+                val old = storedPark(db, p.id)
+                upsertPark(db, p.copy(city = p.city ?: old?.city, state = p.state ?: old?.state))
+            }
+            val cs = o.getJSONArray("coasters")
+            for (i in 0 until cs.length()) {
+                val n = cs.getJSONObject(i).toCoaster()
+                val old = storedCoaster(db, n.id)
+                val sbnoSince = when {
+                    n.status != "sbno" -> null
+                    old?.status == "sbno" && old.sbnoSince != null -> old.sbnoSince
+                    else -> n.sbnoSince ?: today.toString()
+                }
+                upsertCoaster(db, n.copy(sbnoSince = sbnoSince, make = old?.make ?: n.make, model = old?.model ?: n.model))
+            }
+            setMeta(db, "data_as_of", generated)
+        }
+        return true
+    }
+
     fun loadParks(): List<Park> = readableDatabase.rawQuery("SELECT id,name,country,lat,lon,city,state FROM parks", null).use { c ->
         buildList { while (c.moveToNext()) add(Park(c.getLong(0), c.getString(1), c.str(2), c.dbl(3), c.dbl(4), c.str(5), c.str(6))) }
     }

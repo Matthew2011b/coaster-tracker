@@ -34,7 +34,8 @@ class DataTest {
         assertTrue(Rules.isKiddie(c("operating", make = "Wisdom Rides", model = null), k))
         assertTrue(Rules.isKiddie(c("operating", h = 2.4).copy(speedKmh = null), k))
         assertFalse(Rules.isKiddie(c("operating", h = 2.4), k))  // short but fast is not kiddie
-        assertTrue(Rules.isKiddie(c("operating", kind = "travelling"), k))
+        assertFalse(Rules.isKiddie(c("operating", kind = "travelling"), k))  // carnival is its own switch now
+        assertTrue(Rules.isCarnival(c("operating", kind = "travelling")))
         assertFalse(Rules.isKiddie(c("operating", h = 13.0), k))
         assertFalse(Rules.counts(kiddie, false, f, today, k))
         assertTrue(Rules.counts(kiddie, true, f, today, k))
@@ -186,5 +187,45 @@ class DataTest {
         val r = repo("usonly")
         r.updateFilters(r.filters.copy(usOnly = true))
         assertTrue(r.stats.parkStats(usOnly = false).all { it.park.country == "US" })
+    }
+
+    @Test fun kiddieCarnivalAndMountainAreSeparateSwitches() {
+        val k = ModelSet(setOf("Zamperla" to "Family Coaster"))
+        val a = ModelSet(setOf("Wiegand" to "Alpine Coaster"))
+        val kid = c("operating", make = "Zamperla", model = "Family Coaster")
+        val fair = c("operating", kind = "travelling", h = 15.0)
+        val alp = c("operating", make = "Wiegand", model = "Alpine Coaster")
+        val none = Filters()
+        listOf(kid, fair, alp).forEach { assertFalse(Rules.counts(it, false, none, today, k, a)) }
+        assertTrue(Rules.counts(kid, false, none.copy(includeKiddie = true), today, k, a))
+        assertFalse(Rules.counts(fair, false, none.copy(includeKiddie = true), today, k, a))
+        assertTrue(Rules.counts(fair, false, none.copy(includeCarnival = true), today, k, a))
+        assertTrue(Rules.counts(alp, false, none.copy(includeAlpine = true), today, k, a))
+        listOf(kid, fair, alp).forEach { assertTrue(Rules.counts(it, true, none, today, k, a)) }  // logged always counts
+    }
+
+    @Test fun distancesFollowTheUnitsSetting() {
+        Units.metric = false
+        assertEquals("6.2 mi", miles(6.2)); assertEquals("1,234 mi", miles(1234.0))
+        Units.metric = true
+        assertEquals("11 km", miles(7.0)); assertEquals("3.2 km", miles(2.0))
+        Units.metric = false
+    }
+
+    @Test fun appUpdateMergesNewerBundledData() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        ctx.deleteDatabase("t_merge.db")
+        val db = Db(ctx, "t_merge.db")
+        val banshee = db.loadCoasters().first { it.name == "Banshee" }
+        // Pretend this install has older data: Banshee missing its height, an older stamp, a ride and an edit.
+        db.tx { tx -> db.upsertCoaster(tx, banshee.copy(heightM = null, make = "Mystery Make")) }
+        db.addRide(banshee.id, "2019-07-01")
+        db.setMeta("data_as_of", "2026-01-01")
+        assertTrue(db.mergeBundled(LocalDate.of(2026, 11, 10)))
+        val after = db.loadCoasters().first { it.id == banshee.id }
+        assertEquals(banshee.heightM, after.heightM)       // fresh stats arrive
+        assertEquals("Mystery Make", after.make)            // make never changes once set
+        assertEquals(mapOf(banshee.id to "2019-07-01"), db.loadRides())  // rides untouched
+        assertFalse(db.mergeBundled(LocalDate.of(2026, 11, 10)))         // only once per data version
     }
 }

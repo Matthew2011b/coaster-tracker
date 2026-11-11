@@ -54,7 +54,10 @@ data class Coaster(
 
 enum class Life { Operating, Sbno, Defunct, Upcoming, Unknown }
 
-data class Filters(val includeDefunct: Boolean = false, val includeKiddie: Boolean = false, val usOnly: Boolean = false)
+data class Filters(
+    val includeDefunct: Boolean = false, val includeKiddie: Boolean = false, val usOnly: Boolean = false,
+    val includeCarnival: Boolean = false, val includeAlpine: Boolean = false,
+)
 
 object Rules {
     /** A coaster only counts as SBNO once it has been standing for this long; before that it's "operating". */
@@ -72,12 +75,22 @@ object Rules {
     }
 
     /** Kiddie or carnival: travelling, a known kiddie/carnival model, or tiny and slow. */
+    /** Kiddie coaster: a listed kiddie model, or under ~20 ft and either under ~25 mph or no speed listed. */
     fun isKiddie(c: Coaster, kiddieModels: ModelSet): Boolean {
-        if (c.locationKind == "travelling") return true
         if (kiddieModels.matches(c.make, c.model)) return true
         val h = c.heightM ?: return false
         return h < 6.1 && (c.speedKmh == null || c.speedKmh < 40.0)
     }
+
+    /** Carnival coaster: Coasterpedia lists it as travelling. */
+    fun isCarnival(c: Coaster) = c.locationKind == "travelling"
+
+    /** True when the filters hide this coaster's category (kiddie, carnival, alpine, outside the US). */
+    fun filteredOut(c: Coaster, f: Filters, kiddie: ModelSet, alpine: ModelSet): Boolean =
+        (!f.includeAlpine && isAlpine(c, alpine)) ||
+            (!f.includeCarnival && isCarnival(c)) ||
+            (!f.includeKiddie && isKiddie(c, kiddie)) ||
+            (f.usOnly && c.country != "US")
 
     private val ALPINE_NAME = Regex("luge|rodel|alpine slide|alpine coaster|mountain coaster|toboggan run", RegexOption.IGNORE_CASE)
 
@@ -92,12 +105,10 @@ object Rules {
     /** Whether a coaster counts in stats. Anything logged always counts. */
     fun counts(c: Coaster, ridden: Boolean, f: Filters, today: LocalDate, kiddie: ModelSet, alpine: ModelSet = ModelSet.EMPTY): Boolean {
         if (ridden) return true
-        if (isAlpine(c, alpine)) return false
-        if (f.usOnly && c.country != "US") return false
-        val kidOk = f.includeKiddie || !isKiddie(c, kiddie)
+        if (filteredOut(c, f, kiddie, alpine)) return false
         return when (life(c, today)) {
-            Life.Operating -> kidOk
-            Life.Sbno, Life.Defunct -> f.includeDefunct && kidOk
+            Life.Operating -> true
+            Life.Sbno, Life.Defunct -> f.includeDefunct
             else -> false
         }
     }
