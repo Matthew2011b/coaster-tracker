@@ -1,6 +1,8 @@
-// Share links: lift-hill.<account>.workers.dev/p/<park id>, /m/<make>--<model>, /k/<make>.
-// Each page gives chat apps a preview (title, line, and a pre-drawn card image from public/img)
-// and shows people who tap it their own card, drawn in the browser from the numbers in the link.
+// Share links: lift-hill.lifthill.workers.dev/p/<park id>, /m/<make>--<model>-<us|world>, /k/<make>-<us|world>,
+// with only numbers in the query (c coasters, m models, p places, r ridden, y year, d date, n credit number).
+// Names come from public/names.json, written with the images, because chat apps mangle names inside links.
+// Each page gives chat apps a preview (title, line, pre-drawn card from public/img) and shows people who
+// open it their own card, drawn in the browser.
 
 const PLAY = null;  // the Play Store link, once the app is published
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -8,26 +10,44 @@ const num = (v, max = 99999) => Math.max(0, Math.min(max, parseInt(v, 10) || 0))
 const text = (v, max = 80) => String(v ?? "").slice(0, max);
 const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v ?? "") ? v : new Date().toISOString().slice(0, 10));
 
-function card(url) {
-  const [, kind, key = ""] = url.pathname.split("/");
+let NAMES = null;  // kept between requests while the worker stays warm
+async function names(env, origin) {
+  if (!NAMES) { const r = await env.ASSETS.fetch(new Request(origin + "/names.json")); NAMES = r.ok ? await r.json() : { p: {}, m: {}, k: {} }; }
+  return NAMES;
+}
+
+/** Splits "<slug>-us" / "<slug>-world" into the slug and scope. Links from 0.17 put the scope in w=. */
+function scoped(key, q) {
+  const m = key.match(/^(.*)-(us|world)$/);
+  return m ? [m[1], m[2] === "world"] : [key, q.get("w") === "1"];
+}
+
+function card(url, N) {
+  const [, kind, raw = ""] = url.pathname.split("/");
   const q = url.searchParams;
-  const world = q.get("w") === "1", scope = world ? "Worldwide" : "US";
+  const old = q.has("no");                          // 0.17 links: n = name, no = credit
+  const credit = num(old ? q.get("no") : q.get("n"));
   if (kind === "p") {
-    const d = { name: text(q.get("n")) || "A park", coasters: num(q.get("c")), models: num(q.get("m")), year: num(q.get("y"), 9999) || new Date().getFullYear(), no: num(q.get("no")) };
-    return { kind: "park", data: d, title: `${d.name}: 100% Complete`, line: `${d.coasters} coasters, ${d.models} models. Credit #${d.no}.`,
-      img: [`/img/p/${num(key, 1e9)}.jpg`, "/img/fallback-park.jpg"] };
+    const id = num(raw, 1e9);
+    const d = { name: N.p[id] ?? (old ? text(q.get("n")) : "") ?? "", coasters: num(q.get("c")), models: num(q.get("m")),
+      year: num(q.get("y"), 9999) || new Date().getFullYear(), no: credit };
+    return { kind: "park", data: { ...d, name: d.name || "Park Complete" }, title: d.name || "Park Complete",
+      line: `${d.coasters} coasters, ${d.models} models. Credit #${credit}.`, img: [`/img/p/${id}.jpg`, "/img/fallback-park.jpg"] };
   }
+  const [key, world] = scoped(raw.replace(/[^a-z0-9-]/g, ""), q);
+  const scope = world ? "Worldwide" : "US", sc = world ? "world" : "us";
   if (kind === "m") {
-    const d = { make: text(q.get("mk")), model: text(q.get("md")) || "Model", world, count: num(q.get("r")), no: num(q.get("no")), date: date(q.get("d")) };
-    const short = text(q.get("sm")) || d.make;
-    return { kind: "model", data: d, title: `${short} ${d.model} (${scope}): 100% Complete`, line: `${d.count} of ${d.count} ridden. Credit #${d.no}.`,
-      img: [`/img/m/${key.replace(/[^a-z0-9-]/g, "")}-${world ? "world" : "us"}.jpg`, `/img/fallback-model-${world ? "world" : "us"}.jpg`] };
+    const [make, model, short] = N.m[key] ?? (old ? [text(q.get("mk")), text(q.get("md")), text(q.get("sm")) || text(q.get("mk"))] : ["", "", ""]);
+    const d = { make, model: model || "Model Complete", world, count: num(q.get("r")), no: credit, date: date(q.get("d")) };
+    return { kind: "model", data: d, title: model ? `${short} ${model} (${scope})` : `Model Complete (${scope})`,
+      line: `${d.count} of ${d.count} ridden. Credit #${credit}.`, img: [`/img/m/${key}-${sc}.jpg`, `/img/fallback-model-${sc}.jpg`] };
   }
   if (kind === "k") {
-    const d = { make: text(q.get("mk")) || "Manufacturer", world, coasters: num(q.get("c")), models: num(q.get("m")), places: num(q.get("p")), no: num(q.get("no")), date: date(q.get("d")) };
-    return { kind: "maker", data: d, title: `${d.make} (${scope}): 100% Complete`,
-      line: `${d.coasters} coasters, ${d.models} models, ${d.places} ${world ? "countries" : "parks"}. Credit #${d.no}.`,
-      img: [`/img/k/${key.replace(/[^a-z0-9-]/g, "")}-${world ? "world" : "us"}.jpg`, `/img/fallback-maker-${world ? "world" : "us"}.jpg`] };
+    const make = N.k[key] ?? (old ? text(q.get("mk")) : "");
+    const d = { make: make || "Manufacturer Complete", world, coasters: num(q.get("c")), models: num(q.get("m")), places: num(q.get("p")), no: credit, date: date(q.get("d")) };
+    return { kind: "maker", data: d, title: make ? `${make} (${scope})` : `Manufacturer Complete (${scope})`,
+      line: `${d.coasters} coasters, ${d.models} models, ${d.places} ${world ? "countries" : "parks"}. Credit #${credit}.`,
+      img: [`/img/k/${key}-${sc}.jpg`, `/img/fallback-maker-${sc}.jpg`] };
   }
   return null;
 }
@@ -69,7 +89,7 @@ document.fonts.ready.then(() => { document.getElementById("card").innerHTML = sv
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
-    const c = card(url);
+    const c = card(url, await names(env, url.origin));
     let img = null;
     if (c) for (const path of c.img) {
       const r = await env.ASSETS.fetch(new Request(url.origin + path, { method: "HEAD" }));

@@ -240,7 +240,7 @@ class ScreenshotTest {
         rule.onNodeWithText("SHARE").performClick()
         var send = shadow.nextStartedActivity.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
         val text = send.getStringExtra(android.content.Intent.EXTRA_TEXT)!!
-        assertTrue(text, text.startsWith("100% Complete https://") && "/m/bolliger-and-mabillard--wing-coaster?" in text && "no=42" in text && "sm=B%26M" in text)
+        assertTrue(text, text == "https://lift-hill.lifthill.workers.dev/m/bolliger-and-mabillard--wing-coaster-us?r=3&d=2026-11-09&n=42")
         assertTrue(send.type == "text/plain")
 
         rule.onNodeWithText("Share image").performClick()

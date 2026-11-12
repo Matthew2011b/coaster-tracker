@@ -79,10 +79,11 @@ any of Matthew's repos rather than starting from a template.
   (c:<id>, m:<make|model>). Starring a model stars its installations (tracked as "a:<id>"); unstarring it removes only those. Wished parks get a
   Wish-yellow ring and a twinkling star on the map; starred models show a yellow star in Nearest but keep their
   distance order (Nearest is always nearest first). Stats has a search box (Stats.search: word-start matches).
-- Sharing: SHARE sends "100% Complete <link>" (Share.kt ShareLinks) to the share site; "Share image" sends the card PNG
+- Sharing: SHARE sends just the link (Share.kt ShareLinks; ids and numbers only, names come from web/public/names.json
+  because chat apps mangle "&" in links); "Share image" sends the card PNG
   with a Lift Hill footer strip. Site = web/ on Cloudflare Workers (free plan, 10 ms CPU): build-images.mjs pre-draws a
   1200x630 JPEG for every park, model and maker (US/world) in snapshot.json; src/worker.js serves pages with og tags
-  (title "X: 100% Complete") pointing at those images, falling back to generic art; the page draws the visitor's own
+  (title = the name; the card says 100% Complete) pointing at those images, falling back to generic art; the page draws the visitor's own
   card in the browser with public/card.js. .github/workflows/share.yml redraws and deploys on changes to web/ or the
   snapshot (secrets CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID). Site: https://lift-hill.lifthill.workers.dev.
   ShareLinks.slug() must match slug() in web/src/card.js. Set PLAY in worker.js once the app is on the Play Store.

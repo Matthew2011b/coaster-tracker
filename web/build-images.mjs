@@ -1,6 +1,6 @@
 // Pre-draws a preview image for every park, model and manufacturer in the app's data, so the free
 // Cloudflare plan only has to serve files. Runs in GitHub Actions whenever the data or the cards change.
-import { readFileSync, mkdirSync, rmSync, copyFileSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from "fs";
 import { Resvg } from "@resvg/resvg-js";
 import sharp from "sharp";
 import * as C from "./src/card.js";
@@ -34,6 +34,15 @@ for (const c of snap.coasters) {
     k.all++; if (us) k.us++; makers.set(c.make, k);
   }
 }
+
+// Names for the share pages, so links carry only ids and numbers (chat apps mangle names in links).
+const SHORT = { "Bolliger & Mabillard": "B&M", "Great Coasters International": "GCI", "Rocky Mountain Construction": "RMC",
+  "Philadelphia Toboggan Coasters": "PTC", "Custom Coasters International, Inc.": "CCI" };  // same as shortMake() in the app
+const names = { p: {}, m: {}, k: {} };
+for (const id of withCoasters) names.p[id] = parks.get(id).name;
+for (const m of models.values()) names.m[`${C.slug(m.make)}--${C.slug(m.model)}`] = [m.make, m.model, SHORT[m.make] ?? m.make];
+for (const k of makers.values()) names.k[C.slug(k.make)] = k.make;
+writeFileSync(new URL("public/names.json", import.meta.url), JSON.stringify(names));
 
 const jobs = [];
 for (const id of withCoasters) jobs.push([C.park({ name: parks.get(id).name, generic: true }), `p/${id}.jpg`]);
