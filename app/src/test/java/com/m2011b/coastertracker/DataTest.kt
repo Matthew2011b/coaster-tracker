@@ -305,4 +305,36 @@ class DataTest {
         assertTrue(s.search("boomerang", null).models.any { it.key == "Vekoma|Boomerang" })
         assertTrue(s.search("  ", null).empty)
     }
+
+    /** Backup from one phone merges into another: rides from both, earliest date, hand-added coasters remapped. */
+    @Test fun backupMergesIntoAnotherPhone() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val a = Repo(ctx, "t_bk_a.db", "p_bk_a") { java.time.LocalDate.parse("2025-06-01") }
+        val b = Repo(ctx, "t_bk_b.db", "p_bk_b") { java.time.LocalDate.parse("2026-07-01") }
+        val boom = a.stats.coasters.filter { it.modelKey == "Vekoma|Boomerang" }.map { it.id }
+        a.log(boom[0]); a.log(boom[1])
+        val parkId = a.stats.coasters.first { it.id == boom[0] }.parkId
+        val mineA = a.addCustom("Backyard Flyer", parkId, "Homemade", "Wooden")
+        a.log(mineA)
+        a.edit(boom[2], "Vekoma", "Boomerang XL")
+        a.toggleWishCoaster(boom[3]); a.updateMetric(true)
+        assertTrue(a.changedAt > 0)
+
+        val mineB = b.addCustom("Garage Racer", parkId, "Homemade", "Steel")  // takes the same negative id on this phone
+        assertEquals(mineA, mineB)
+        b.log(boom[1]); b.log(mineB)
+        val got = b.restoreBackup(a.exportBackup("THEME1|x"))
+        assertEquals("THEME1|x", got.theme)
+        assertEquals(2, got.added)  // boom[0] and Backyard Flyer; boom[1] was already logged
+        val flyer = b.stats.coasters.first { it.name == "Backyard Flyer" }
+        assertTrue(flyer.id != mineB)
+        assertTrue(listOf(flyer.id, mineB, boom[0]).all { it in b.stats.rides })
+        assertEquals("2025-06-01", b.stats.rides[boom[1]])  // earlier date wins
+        assertEquals("Boomerang XL", b.stats.coasters.first { it.id == boom[2] }.model)
+        assertTrue(b.wishes.coaster(boom[3]) && b.metric)
+        // Restoring the same backup twice changes nothing.
+        assertEquals(0, b.restoreBackup(a.exportBackup(null)).added)
+        assertEquals(1, b.stats.coasters.count { it.name == "Backyard Flyer" })
+        assertThrows(IllegalArgumentException::class.java) { b.restoreBackup("{\"rides\":[]}") }
+    }
 }

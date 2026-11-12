@@ -39,7 +39,7 @@ class Repo(context: Context, dbName: String = "coasters.db", prefsName: String =
         return Wishes(ids("c:"), raw.filter { it.startsWith("m:") }.map { it.drop(2) }.toSet(), ids("a:"))
     }
     private fun saveWishes(w: Wishes) {
-        wishes = w
+        wishes = w; touch()
         prefs.edit().putStringSet("wish", w.coasters.map { "c:$it" }.toSet() + w.models.map { "m:$it" } + w.auto.map { "a:$it" }).apply()
     }
 
@@ -66,7 +66,7 @@ class Repo(context: Context, dbName: String = "coasters.db", prefsName: String =
     /** Log a Ride shows the quick tile list instead of the picker. */
     var quickLog by mutableStateOf(prefs.getBoolean("quick_log", false))
         private set
-    fun updateQuickLog(on: Boolean) { quickLog = on; prefs.edit().putBoolean("quick_log", on).apply() }
+    fun updateQuickLog(on: Boolean) { quickLog = on; prefs.edit().putBoolean("quick_log", on).apply(); touch() }
 
     private var coasters = db.loadCoasters()
     private var parks = db.loadParks().associateBy { it.id }
@@ -88,7 +88,7 @@ class Repo(context: Context, dbName: String = "coasters.db", prefsName: String =
     /** Logs a ride today and returns anything it finished (park, model, manufacturer). */
     fun log(id: Long): List<Milestone> {
         val before = stats
-        db.addRide(id, today().toString()); refresh()
+        db.addRide(id, today().toString()); refresh(); touch()
         val c = coasters.firstOrNull { it.id == id } ?: return emptyList()
         return milestones(before, stats, c).also { celebrations = celebrations + it }
     }
@@ -97,27 +97,76 @@ class Repo(context: Context, dbName: String = "coasters.db", prefsName: String =
     var celebrations by mutableStateOf<List<Milestone>>(emptyList())
         private set
     fun dismissCelebration() { celebrations = celebrations.drop(1) }
-    fun unlog(id: Long) { db.removeRide(id); refresh() }
+    fun unlog(id: Long) { db.removeRide(id); refresh(); touch() }
 
     fun edit(id: Long, make: String, model: String) {
-        db.setOverride(id, norm.make(make.trim()), model.trim().ifEmpty { null }); refresh(reload = true)
+        db.setOverride(id, norm.make(make.trim()), model.trim().ifEmpty { null }); refresh(reload = true); touch()
     }
 
     fun addCustom(name: String, parkId: Long?, make: String, model: String): Long {
         val id = db.addCustom(name.trim(), park(parkId), norm.make(make.trim()), model.trim().ifEmpty { null })
-        refresh(reload = true); return id
+        refresh(reload = true); touch(); return id
     }
 
-    fun updateMetric(on: Boolean) { metric = on; Units.metric = on; prefs.edit().putBoolean("metric", on).apply() }
+    fun updateMetric(on: Boolean) { metric = on; Units.metric = on; prefs.edit().putBoolean("metric", on).apply(); touch() }
 
     fun updateFilters(f: Filters) {
         prefs.edit().putBoolean("inc_defunct", f.includeDefunct).putBoolean("inc_kiddie", f.includeKiddie).putBoolean("us_only", f.usOnly)
             .putBoolean("inc_carnival", f.includeCarnival).putBoolean("inc_alpine", f.includeAlpine).apply()
-        filters = f; stats = build()
+        filters = f; stats = build(); touch()
     }
 
     fun setKey(k: String) { apiKey = k.trim(); prefs.edit().putString("api_key", apiKey).apply() }
     fun setLastPark(id: Long) { lastParkId = id; prefs.edit().putLong("last_park", id).apply() }
+
+    /** When rides, edits, stars or settings last changed, so automatic backup knows whether there's anything new. */
+    var changedAt by mutableStateOf(prefs.getLong("changed_at", 0L))
+        private set
+    private fun touch() { changedAt = System.currentTimeMillis(); prefs.edit().putLong("changed_at", changedAt).apply() }
+
+    /** Everything that's yours (not the bundled coaster data), as JSON. [themeCode] comes from the ThemeStore. */
+    fun exportBackup(themeCode: String?): String = Backup.write(Backup.Data(
+        rides = rides, edits = db.loadOverrides(), custom = coasters.filter { it.custom }, wishes = wishes,
+        prefs = mapOf("inc_defunct" to filters.includeDefunct, "inc_kiddie" to filters.includeKiddie, "us_only" to filters.usOnly,
+            "inc_carnival" to filters.includeCarnival, "inc_alpine" to filters.includeAlpine, "metric" to metric, "quick_log" to quickLog),
+        theme = themeCode,
+    ))
+
+    /**
+     * Merges a backup into this phone: rides from both are kept (earliest date wins), edits and coasters you added
+     * are added where this phone has none, stars are combined, and the backup's settings are applied.
+     * Returns what changed and the backup's theme code for the caller to apply.
+     */
+    fun restoreBackup(json: String): Backup.Restored {
+        val b = Backup.read(json)
+        var newRides = 0
+        db.tx {
+            // Coasters added by hand have ids made on each phone, so match them by name and park, not id.
+            val mine = coasters.filter { it.custom }
+            val idMap = HashMap<Long, Long>()
+            for (c in b.custom) {
+                val same = mine.firstOrNull { it.name.equals(c.name, true) && it.parkId == c.parkId }
+                val park = c.parkId?.let { parks[it] ?: Park(it, c.parkName ?: "", c.country, null, null) }
+                idMap[c.id] = same?.id ?: db.addCustom(c.name, park, c.make, c.model)
+            }
+            fun map(id: Long) = idMap[id] ?: id
+            for ((id, date) in b.rides) {
+                val to = map(id); val have = rides[to]
+                if (to !in rides) { db.addRide(to, date); newRides++ }
+                else if (date != null && (have == null || date < have)) { db.removeRide(to); db.addRide(to, date) }
+            }
+            val edits = db.loadOverrides()
+            for ((id, mm) in b.edits) if (map(id) !in edits) db.setOverride(map(id), mm.first, mm.second)
+            saveWishes(Wishes(wishes.coasters + b.wishes.coasters.map(::map), wishes.models + b.wishes.models, wishes.auto + b.wishes.auto.map(::map)))
+        }
+        val bp = b.prefs
+        updateFilters(Filters(bp["inc_defunct"] ?: filters.includeDefunct, bp["inc_kiddie"] ?: filters.includeKiddie, bp["us_only"] ?: filters.usOnly,
+            bp["inc_carnival"] ?: filters.includeCarnival, bp["inc_alpine"] ?: filters.includeAlpine))
+        bp["metric"]?.let { updateMetric(it) }
+        bp["quick_log"]?.let { updateQuickLog(it) }
+        refresh(reload = true)
+        return Backup.Restored(newRides, b.rides.size, b.theme)
+    }
 
     fun exportCsv(): String = Csv.export(coasters, rides)
 
@@ -125,7 +174,7 @@ class Repo(context: Context, dbName: String = "coasters.db", prefsName: String =
     fun importCsv(text: String): Csv.Result {
         val r = Csv.match(Csv.parse(text), coasters)
         db.tx { r.matched.forEach { (id, d) -> db.addRide(id, d) } }
-        refresh(); return r
+        refresh(); touch(); return r
     }
 
     suspend fun sync(progress: (String) -> Unit): Sync.Summary {

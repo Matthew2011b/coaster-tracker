@@ -128,6 +128,10 @@ class Db(private val context: Context, name: String = "coasters.db") : SQLiteOpe
             SQLiteDatabase.CONFLICT_IGNORE)
     }
 
+    fun loadOverrides(): Map<Long, Pair<String?, String?>> = readableDatabase.rawQuery("SELECT coaster_id, make, model FROM overrides", null).use { c ->
+        buildMap { while (c.moveToNext()) put(c.getLong(0), c.str(1)?.ifEmpty { null } to c.str(2)?.ifEmpty { null }) }
+    }
+
     fun removeRide(id: Long) { writableDatabase.delete("rides", "coaster_id=?", arrayOf(id.toString())) }
 
     fun setOverride(id: Long, make: String?, model: String?) {

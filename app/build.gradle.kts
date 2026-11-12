@@ -66,6 +66,8 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.core:core-ktx:1.16.0")
+    implementation("com.google.android.gms:play-services-auth:21.3.0")  // Google sign-in for Drive backup (AuthorizationClient)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.15.1")
     testImplementation("io.github.takahirom.roborazzi:roborazzi:1.46.1")
