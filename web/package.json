@@ -1,0 +1,20 @@
+{
+  "name": "lift-hill-share",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "render-test": "node render-test.mjs",
+    "bench": "node bench.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@resvg/resvg-wasm": "^2.6.2"
+  },
+  "devDependencies": {
+    "wrangler": "^3.114.0"
+  },
+  "type": "module",
+  "private": true
+}
