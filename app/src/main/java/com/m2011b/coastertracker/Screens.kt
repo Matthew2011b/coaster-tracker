@@ -326,7 +326,7 @@ fun NearestScreen(repo: Repo, refreshLocation: () -> Unit, onModel: (String) -> 
     val s = repo.stats
     val wishes = repo.wishes
     val rows = remember(s, here, wishes) {
-        here?.let { h -> s.nearestNewModels(h).sortedBy { !wishes.model(it.stat.key) }.take(100) }.orEmpty()
+        here?.let { h -> s.nearestNewModels(h).take(100) }.orEmpty()
     }
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth().clip(BoxShape).background(p.surface).border(1.dp, p.line, BoxShape).padding(start = 14.dp),
@@ -335,9 +335,7 @@ fun NearestScreen(repo: Repo, refreshLocation: () -> Unit, onModel: (String) -> 
             TextButton(onClick = refreshLocation) { Text("Refresh", color = p.accent, fontWeight = FontWeight.SemiBold) }
         }
         SectionHead("Closest place to ride each model you haven't")
-        val list = androidx.compose.foundation.lazy.rememberLazyListState()
-        LaunchedEffect(wishes.models) { list.scrollToItem(0) }  // starred models jump to the top: show them
-        ListBox(Modifier.weight(1f), list) {
+        ListBox(Modifier.weight(1f)) {
             items(rows, key = { it.stat.key }) { r ->
                 Row(Modifier.fillMaxWidth().clickable { onModel(r.stat.key) }.padding(horizontal = 14.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically) {

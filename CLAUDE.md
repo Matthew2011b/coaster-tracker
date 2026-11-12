@@ -76,8 +76,9 @@ any of Matthew's repos rather than starting from a template.
   Share renders the card to PNG via FileProvider (res/xml/file_paths.xml). The plate and blueprint colors are fixed
   artwork constants (like the logo), as are the ticket colors, the one exception to the token rule.
 - Wishlist: stars on coasters (park detail, model installations) and models (model panel), stored in prefs "wish"
-  (c:<id>, m:<make|model>). Wished parks get a Wish-yellow ring and a twinkling star on the map; starred models sort
-  first in Nearest.
+  (c:<id>, m:<make|model>). Starring a model stars its installations (tracked as "a:<id>"); unstarring it removes only those. Wished parks get a
+  Wish-yellow ring and a twinkling star on the map; starred models show a yellow star in Nearest but keep their
+  distance order (Nearest is always nearest first). Stats has a search box (Stats.search: word-start matches).
 - Coaster data is Coasterpedia (CC BY-SA 4.0): keep the credit line on Settings.
 - Building here: Maven Central rate-limits shared IPs; a local Gradle init script points at Google's mirror.
 
