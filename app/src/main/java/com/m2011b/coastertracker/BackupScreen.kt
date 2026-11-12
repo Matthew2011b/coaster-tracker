@@ -113,7 +113,7 @@ fun BackupScreen(repo: Repo, drive: DriveBackup) {
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PrimaryButton("BACK UP NOW", Modifier.weight(1.8f), enabled = !drive.busy) {
+                    PrimaryButton("Back up now", Modifier.weight(1f), enabled = !drive.busy, compact = true) {
                         scope.launch { runCatching { drive.backUpNow() }.onFailure { fail(it, "Backup failed") } }
                     }
                     SecondaryButton("Restore", Modifier.weight(1f), enabled = !drive.busy) {

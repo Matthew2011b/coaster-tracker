@@ -54,21 +54,22 @@ fun SettingsScreen(repo: Repo, theme: ThemeStore, drive: DriveBackup, onColors: 
     var syncing by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Panel(Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Panel(Modifier.fillMaxWidth(), PaddingValues(horizontal = 14.dp, vertical = 2.dp)) {
             NavRow("Colors & theme", "${presetName() ?: "Custom"} · ${theme.mode.name}", onColors) {
-                Box(Modifier.size(30.dp).clip(CircleShape).background(p.accent).border(1.dp, p.line, CircleShape))
+                Box(Modifier.size(28.dp).clip(CircleShape).background(p.accent).border(1.dp, p.line, CircleShape))
             }
             RowDivider()
             NavRow("Backup & data", backupLine(drive, repo), onBackup,
                 trail = { if (drive.email != null && !drive.needsBackup) Text("✓", color = p.ok, fontWeight = FontWeight.Bold, fontSize = 16.sp) }) {
-                Box(Modifier.size(30.dp).clip(CircleShape).background(p.accentSoft), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(28.dp).clip(CircleShape).background(p.accentSoft), contentAlignment = Alignment.Center) {
                     Icon(CLOUD, null, tint = p.accent, modifier = Modifier.size(18.dp))
                 }
             }
         }
 
-        Panel(Modifier.fillMaxWidth()) {
+        Panel(Modifier.fillMaxWidth(), PaddingValues(start = 16.dp, end = 12.dp, top = 4.dp, bottom = 4.dp)) {
             ToggleRow("Include defunct coasters", repo.filters.includeDefunct) { repo.updateFilters(repo.filters.copy(includeDefunct = it)) }
             ToggleRow("Include kiddie coasters", repo.filters.includeKiddie) { repo.updateFilters(repo.filters.copy(includeKiddie = it)) }
             ToggleRow("Include carnival coasters", repo.filters.includeCarnival) { repo.updateFilters(repo.filters.copy(includeCarnival = it)) }
@@ -78,17 +79,20 @@ fun SettingsScreen(repo: Repo, theme: ThemeStore, drive: DriveBackup, onColors: 
         }
 
         Panel(Modifier.fillMaxWidth()) {
-            FieldBox("Coasterpedia API key", key, { key = it; repo.setKey(it) }, if (key.isBlank()) FieldStatus.Empty else FieldStatus.Typing,
-                null, placeholder = "cpk_...")
-            Spacer(Modifier.height(8.dp))
-            PrimaryButton(if (syncing) "UPDATING..." else "UPDATE COASTER DATA", enabled = key.isNotBlank() && !syncing) {
-                syncing = true
-                scope.launch {
-                    status = runCatching { repo.sync { status = it } }.fold(
-                        { "Updated: ${it.added} new, ${it.updated} changed" },
-                        { (it as? Sync.Failed)?.message ?: "Update failed: ${it.message ?: "no connection"}" },
-                    )
-                    syncing = false
+            // Key and button share a row: the key is set once, so it doesn't need a full-width button under it.
+            FieldLabel("Coasterpedia API key")
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FieldBox("", key, { key = it; repo.setKey(it) }, if (key.isBlank()) FieldStatus.Empty else FieldStatus.Typing,
+                    null, Modifier.weight(1f), placeholder = "cpk_...")
+                PrimaryButton(if (syncing) "Updating" else "Update data", Modifier.width(128.dp), enabled = key.isNotBlank() && !syncing, compact = true) {
+                    syncing = true
+                    scope.launch {
+                        status = runCatching { repo.sync { status = it } }.fold(
+                            { "Updated: ${it.added} new, ${it.updated} changed" },
+                            { (it as? Sync.Failed)?.message ?: "Update failed: ${it.message ?: "no connection"}" },
+                        )
+                        syncing = false
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -101,16 +105,16 @@ fun SettingsScreen(repo: Repo, theme: ThemeStore, drive: DriveBackup, onColors: 
             }
         }
 
-        Text("Coaster data from Coasterpedia contributors, CC BY-SA 4.0. Park locations partly from OpenStreetMap contributors (ODbL) and Wikidata. Map from Natural Earth.", color = p.muted, fontSize = 12.sp)
+        Text("Data: Coasterpedia contributors (CC BY-SA 4.0), OpenStreetMap contributors (ODbL), Wikidata, Natural Earth.", color = p.muted, fontSize = 11.sp, lineHeight = 15.sp)
     }
 }
 
 /** "Google Drive: backed up today, 2:41 PM" and friends. */
 internal fun backupLine(drive: DriveBackup, repo: Repo): String = when {
     drive.email == null -> "Google Drive backup is off"
-    drive.backupAt == 0L -> "Google Drive: not backed up yet"
-    drive.needsBackup -> "Google Drive: changes not backed up yet"
-    else -> "Google Drive: backed up ${whenText(drive.backupAt)}"
+    drive.backupAt == 0L -> "Not backed up yet"
+    drive.needsBackup -> "Changes not backed up yet"
+    else -> "Backed up ${whenText(drive.backupAt)}"
 }
 
 internal fun whenText(ms: Long, now: Long = System.currentTimeMillis()): String {
@@ -126,7 +130,7 @@ internal val CLOUD = outlineIcon("cloud", "M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1
 @Composable
 private fun NavRow(title: String, sub: String, onClick: () -> Unit, trail: @Composable () -> Unit = {}, lead: @Composable () -> Unit) {
     val p = LocalPalette.current
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically,
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         lead()
         Column(Modifier.weight(1f)) {
@@ -180,7 +184,7 @@ private fun Swatch(name: String, on: Boolean, onClick: () -> Unit, dot: @Composa
 @Composable
 private fun ToggleRow(label: String, on: Boolean, onChange: (Boolean) -> Unit) {
     val p = LocalPalette.current
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { onChange(!on) }, verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable { onChange(!on) }, verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = p.ink, fontSize = 15.sp, modifier = Modifier.weight(1f))
         Switch(on, onCheckedChange = onChange, colors = SwitchDefaults.colors(
             checkedThumbColor = p.btnInk, checkedTrackColor = p.accent, uncheckedThumbColor = p.muted, uncheckedTrackColor = p.surface,

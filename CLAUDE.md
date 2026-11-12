@@ -88,7 +88,8 @@ any of Matthew's repos rather than starting from a template.
   snapshot (secrets CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID). Site: https://lift-hill.lifthill.workers.dev.
   ShareLinks.slug() must match slug() in web/src/card.js. Set PLAY in worker.js once the app is on the Play Store.
 - Settings: two rows open Colors & Theme (ColorsScreen: presets, Custom = ThemeEditorScreen, System/Light/Dark) and
-  Backup & Data (BackupScreen.kt); then the filter toggles and the Coasterpedia key panel ("Get a free key" link left, data date right).
+  Backup & Data (BackupScreen.kt); then the filter toggles and the Coasterpedia key panel (key and Update data on one row,
+  "Get a free key" left, data date right). Tuned to fit one screen on Matthew's phone (ScreenshotTest.settingsOnPhone).
 - Backup: data/Backup.kt is the JSON format (rides, overrides, custom coasters, wishes, prefs, theme code). Repo.restoreBackup
   merges, never replaces: union of rides (earliest date wins), local edits win, custom coasters matched by name + park and
   re-id'd, stars combined, settings and theme from the backup. Drive.kt (DriveBackup) = Identity AuthorizationClient with

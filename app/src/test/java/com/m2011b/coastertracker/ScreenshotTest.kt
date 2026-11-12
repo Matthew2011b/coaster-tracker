@@ -151,6 +151,15 @@ class ScreenshotTest {
         rule.onNodeWithContentDescription("Back").performClick(); shot("10e_settings_signed_in")
     }
 
+    /** Roughly Matthew's S24 Ultra with its larger text setting. */
+    @Test @Config(sdk = [34], qualifiers = "w384dp-h832dp-xxhdpi", fontScale = 1.15f)
+    fun settingsOnPhone() {
+        start("phonesettings", "settings")
+        rule.runOnUiThread { drive.email = "you@gmail.com"; drive.backupAt = System.currentTimeMillis() + 1000 }
+        shot("10f_settings_phone")
+        rule.onNodeWithText("Backup & data").performClick(); shot("10g_backup_phone")
+    }
+
     @Test @Config(sdk = [34], qualifiers = "w360dp-h640dp-xhdpi")
     fun smallSettingsPages() {
         start("smallpages", "settings", Sub.Backup)

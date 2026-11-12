@@ -74,7 +74,7 @@ fun FieldBox(
         TextStyle(fontFamily = fonts.sans, fontSize = 17.sp, color = p.ink, lineHeight = 24.sp)
 
     Column(modifier.fillMaxWidth()) {
-        FieldLabel(label)
+        if (label.isNotEmpty()) FieldLabel(label)
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
@@ -164,7 +164,7 @@ fun <T> SelectBox(
 
 /** Full-width 56dp accent button. */
 @Composable
-fun PrimaryButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+fun PrimaryButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, compact: Boolean = false, onClick: () -> Unit) {
     val p = LocalPalette.current
     Button(
         onClick = onClick,
@@ -174,8 +174,13 @@ fun PrimaryButton(text: String, modifier: Modifier = Modifier, enabled: Boolean 
             containerColor = p.accent, contentColor = p.btnInk,
             disabledContainerColor = p.line, disabledContentColor = p.muted,
         ),
-        modifier = modifier.fillMaxWidth().height(56.dp),
-    ) { Text(text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp) }
+        contentPadding = if (compact) PaddingValues(horizontal = 8.dp) else ButtonDefaults.ContentPadding,
+        modifier = modifier.fillMaxWidth().height(if (compact) 52.dp else 56.dp),
+    ) {
+        // compact matches SecondaryButton, for a primary and secondary side by side
+        if (compact) Text(text, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+        else Text(text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+    }
 }
 
 /** Full-width outlined button for secondary actions. */
@@ -192,9 +197,9 @@ fun SecondaryButton(text: String, modifier: Modifier = Modifier, enabled: Boolea
 
 /** Flat surface card with a 1dp border. */
 @Composable
-fun Panel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+fun Panel(modifier: Modifier = Modifier, padding: PaddingValues = PaddingValues(16.dp), content: @Composable ColumnScope.() -> Unit) {
     val p = LocalPalette.current
-    Column(modifier.background(p.surface, BoxShape).border(1.dp, p.line, BoxShape).padding(16.dp), content = content)
+    Column(modifier.background(p.surface, BoxShape).border(1.dp, p.line, BoxShape).padding(padding), content = content)
 }
 
 /** Compact number tile. The label reserves two lines so values line up across a row. */
