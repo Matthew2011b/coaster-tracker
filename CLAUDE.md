@@ -60,6 +60,9 @@ any of Matthew's repos rather than starting from a template.
   App updates: Db.mergeBundled merges a newer assets/snapshot.json ("generated" date > meta data_as_of) into
   existing installs with the same rules as Sync; bump "generated" when shipping new data.
   US parks show "City, ST": state comes from /v1/parks, city only from /v1/parks/{id} (snapshot only).
+  Park coordinates: Coasterpedia lacks them for ~670 parks; filled from OpenStreetMap/Wikidata/hand lookups
+  (tools/snapshot/coords, about 200 placed at their town center). Sync keeps stored coordinates when Coasterpedia
+  sends none.
 - Screens: LogScreen.kt, Screens.kt (Stats, Model detail, Parks, Park detail, Nearest), ParksMap.kt (map view,
   toggled by the loop button on Parks) drawing Basemap.kt / assets/basemap.bin: Natural Earth (public domain) land,
   lakes, rivers, borders, interstates and towns, bundled so the map needs no servers. Rebuild the asset with

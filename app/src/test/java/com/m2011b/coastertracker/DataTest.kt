@@ -113,6 +113,12 @@ class DataTest {
         // A later update keeps the clock start.
         s.merge(emptyList(), listOf(coaster(764, "standing_but_not_operating", 716, "Arrow Dynamics", "Suspended Coaster")), today.plusDays(300))
         assertEquals(today.toString(), db.storedCoaster(db.readableDatabase, 764)!!.sbnoSince)
+        // Coasterpedia has no coordinates for Silver Dollar City (7907); an update must keep the filled-in ones.
+        val before = db.storedPark(db.readableDatabase, 7907)!!
+        assertNotNull(before.lat)
+        s.merge(listOf(JSONObject("""{"id":7907,"name":"Silver Dollar City","country":{"code":"US"},"state":"Missouri"}""")), emptyList(), today)
+        val after = db.storedPark(db.readableDatabase, 7907)!!
+        assertEquals(before.lat, after.lat); assertEquals(before.lon, after.lon)
     }
 
     @Test fun alpineCoastersNeverCountUnlessLogged() {

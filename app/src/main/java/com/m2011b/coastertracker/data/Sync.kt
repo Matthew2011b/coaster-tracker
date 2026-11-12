@@ -39,7 +39,8 @@ class Sync(private val db: Db, private val norm: Normalizer) {
             val id = p.getLong("id")
             val old = db.storedPark(tx, id)  // the park list has no city, so keep the one from the snapshot
             db.upsertPark(tx, Park(id, p.getString("name"), p.optJSONObject("country")?.optString("code"),
-                co?.optDoubleOrNull("lat"), co?.optDoubleOrNull("lon"), old?.city, p.optStringOrNull("state") ?: old?.state))
+                co?.optDoubleOrNull("lat") ?: old?.lat, co?.optDoubleOrNull("lon") ?: old?.lon,  // keep filled-in coordinates
+                old?.city, p.optStringOrNull("state") ?: old?.state))
         }
         var added = 0; var updated = 0; var moved = 0
         coasters.forEach { a ->
