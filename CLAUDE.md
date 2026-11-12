@@ -67,6 +67,17 @@ any of Matthew's repos rather than starting from a template.
   toggled by the loop button on Parks) drawing Basemap.kt / assets/basemap.bin: Natural Earth (public domain) land,
   lakes, rivers, borders, interstates and towns, bundled so the map needs no servers. Rebuild the asset with
   tools/basemap/build_basemap.py; check it with tools/basemap/preview.py), SettingsScreen.kt.
+- Log a Ride has two modes (loop button, remembered in prefs quick_log): the picker, and a quick list of 3-line tiles
+  (name, manufacturer, model) sized to fit a big park without scrolling; tap logs with an Undo bar.
+- Model and maker pages: loop map button shows Stats.installParks on ParksMap (fitAll frames the nearest few).
+- Completion: Repo.log returns Milestones (data/Stats.kt milestones()) and queues them in repo.celebrations; App shows
+  CelebrationDialog (Celebrate.kt): ticket = park, builder's plate = maker (steel US / brass world), blueprint = model.
+  Models and makers need 2+ installations; world beats US when both finish at once; US-only users get US cards only.
+  Share renders the card to PNG via FileProvider (res/xml/file_paths.xml). The plate and blueprint colors are fixed
+  artwork constants (like the logo), the one exception to the token rule.
+- Wishlist: stars on coasters (park detail, model installations) and models (model panel), stored in prefs "wish"
+  (c:<id>, m:<make|model>). Wished parks get a Wish-yellow ring and a twinkling star on the map; starred models sort
+  first in Nearest.
 - Coaster data is Coasterpedia (CC BY-SA 4.0): keep the credit line on Settings.
 - Building here: Maven Central rate-limits shared IPs; a local Gradle init script points at Google's mirror.
 

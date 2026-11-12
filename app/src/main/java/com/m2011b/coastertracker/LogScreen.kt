@@ -4,7 +4,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
+import androidx.compose.ui.unit.Dp
+import kotlinx.coroutines.delay
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -24,7 +36,7 @@ import com.m2011b.kit.theme.LocalPalette
 import com.m2011b.kit.ui.*
 
 @Composable
-fun LogScreen(repo: Repo) {
+fun LogScreen(repo: Repo, quick: Boolean = repo.quickLog) {
     val p = LocalPalette.current
     val stats = repo.stats
     val here = LocalHere.current
@@ -55,7 +67,9 @@ fun LogScreen(repo: Repo) {
     var adding by remember { mutableStateOf(false) }
     var justLogged by remember { mutableStateOf<String?>(null) }
 
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    if (quick) {
+        QuickLog(repo, park, atPark, here, onPickPark = { pickPark = true }, onEdit = { editing = it }, onAdd = { adding = true })
+    } else Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column {
             FieldLabel("Park")
             PickerBox(park?.name ?: "Pick a park", park?.let { parkSub(it, here) }) { pickPark = true }
@@ -83,6 +97,96 @@ fun LogScreen(repo: Repo) {
     if (pickPark) ParkPicker(parks, here, onDismiss = { pickPark = false }) { parkId = it.id; pickedByHand = true; repo.setLastPark(it.id); pickPark = false }
     editing?.let { c -> EditCoasterDialog(repo, c) { editing = null } }
     if (adding) AddCoasterDialog(repo, park) { id -> adding = false; if (id != null) selected = id }
+}
+
+/**
+ * Quick log: every coaster at the park as a tile (name, manufacturer, model), sized so even the
+ * biggest parks fit without scrolling. Tap an unridden tile to log it, with an Undo bar; long-press
+ * to edit.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun QuickLog(repo: Repo, park: Park?, atPark: List<Coaster>, here: LatLon?, onPickPark: () -> Unit, onEdit: (Coaster) -> Unit, onAdd: () -> Unit) {
+    val p = LocalPalette.current
+    val stats = repo.stats
+    var undo by remember { mutableStateOf<Coaster?>(null) }
+    LaunchedEffect(undo) { if (undo != null) { delay(4500); undo = null } }
+    // Same order as the picker list, but fixed while you tap so tiles don't jump around.
+    val order = remember(park?.id, atPark.size) { atPark.sortedBy { it.name.lowercase() }.map { it.id } }
+    val tiles = order.mapNotNull { id -> atPark.firstOrNull { it.id == id } }
+
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            Modifier.fillMaxWidth().height(46.dp).clip(BoxShape).background(p.surface).border(2.dp, p.line, BoxShape)
+                .clickable(onClick = onPickPark).padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(park?.name ?: "Pick a park", color = p.ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            park?.let { Text("  " + parkSub(it, here), color = p.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false)) }
+            Spacer(Modifier.weight(0.01f))
+            Mono("${atPark.count { stats.ridden(it) }} / ${atPark.size}", modifier = Modifier.padding(start = 8.dp))
+            Text("  ▼", color = p.muted, fontSize = 12.sp)
+        }
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            val gap = 6.dp
+            val cells = tiles.size + 1  // plus the Add tile
+            val rows = (cells + 1) / 2
+            val tileH = ((maxHeight - gap * (rows - 1)) / rows).coerceIn(60.dp, 68.dp)
+            LazyVerticalGrid(GridCells.Fixed(2), horizontalArrangement = Arrangement.spacedBy(gap), verticalArrangement = Arrangement.spacedBy(gap),
+                modifier = Modifier.fillMaxSize()) {
+                items(tiles, key = { it.id }) { c ->
+                    val ridden = stats.ridden(c)
+                    QuickTile(c, ridden, stats.isNewModel(c), tileH,
+                        onClick = { if (!ridden) { repo.log(c.id); park?.let { repo.setLastPark(it.id) }; undo = c } },
+                        onLongClick = { onEdit(c) })
+                }
+                item(key = "add") {
+                    Box(Modifier.height(tileH).clip(TileShape).border(1.dp, p.line, TileShape).clickable(onClick = onAdd), contentAlignment = Alignment.Center) {
+                        Text("+ Add a coaster", color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+            undo?.let { c ->
+                Row(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 4.dp).clip(BoxShape).background(p.ink)
+                        .padding(start = 14.dp), verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Logged ${c.name}", color = p.bg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text("UNDO", color = p.headerTrack, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clickable { repo.unlog(c.id); undo = null }.padding(horizontal = 16.dp, vertical = 14.dp))
+                }
+            }
+        }
+    }
+}
+
+private val TileShape = RoundedCornerShape(9.dp)
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun QuickTile(c: Coaster, ridden: Boolean, newModel: Boolean, height: Dp, onClick: () -> Unit, onLongClick: () -> Unit) {
+    val p = LocalPalette.current
+    val bg = when { ridden -> p[AppTokens.OkSoft]; newModel -> p[AppTokens.NewBg]; else -> p.surface }
+    val edge = when { ridden -> p.ok; newModel -> p[AppTokens.NewInk]; else -> p.line }
+    Box(
+        Modifier.height(height).clip(TileShape).background(bg).border(1.dp, edge, TileShape)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 9.dp, vertical = 5.dp),
+    ) {
+        Column(Modifier.align(Alignment.CenterStart).fillMaxWidth()) {
+            Text(c.name, color = p.ink, fontSize = 13.5.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = if (newModel) 30.dp else 20.dp))
+            Text(c.make ?: "Unknown maker", color = p.ink.copy(alpha = 0.8f), fontSize = 11.5.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(c.model ?: "Custom", color = p.muted, fontSize = 11.5.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Box(Modifier.align(Alignment.TopEnd)) {
+            when {
+                ridden -> Icon(Icons.Filled.Check, contentDescription = "Ridden", tint = p.ok, modifier = Modifier.size(16.dp))
+                newModel -> Text("NEW", color = p[AppTokens.NewInk], fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp)
+                else -> Box(Modifier.padding(top = 1.dp).size(14.dp).border(2.dp, p.line, CircleShape))
+            }
+        }
+    }
 }
 
 private sealed interface Choice {

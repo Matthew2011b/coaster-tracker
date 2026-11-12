@@ -25,6 +25,13 @@ object AppTokens {
     val Track = ColorToken("Track", "Progress bar track", 0xFFE4E6E7, 0xFF33373A,
         derive = { g, _ -> Mix.toward(g(Std.Text), g(Std.Surface), 0.88f) })
 
+    /** Ridden tiles on the quick log list. */
+    val OkSoft = ColorToken("OkSoft", "Ridden tile", 0xFFE3F3E6, 0xFF1F3A26,
+        derive = { g, d -> Mix.toward(g(Std.Ok), g(Std.Surface), if (d) 0.78f else 0.86f) })
+    /** Wishlist stars and the twinkle on wishlist parks. */
+    val Wish = ColorToken("Wish", "Wishlist star", 0xFFFFC93C, 0xFFFFC93C,
+        derive = { _, _ -> Color(0xFFFFC93C) })
+
     // Parks map: page color for land, plus these three.
     val MapWater = ColorToken("MapWater", "Map water", 0xFFC4D8E8, 0xFF1E344A,
         derive = { g, d -> Mix.toward(Color(0xFF4F86B8), g(Std.Background), if (d) 0.62f else 0.68f) })
@@ -33,7 +40,7 @@ object AppTokens {
     val MapInk = ColorToken("MapInk", "Map towns & borders", 0xFF6E7275, 0xFFA0A5AA,
         derive = { g, d -> Mix.toward(g(Std.Text), g(Std.Background), if (d) 0.35f else 0.45f) })
 
-    val all = Std.all + listOf(NewBg, NewInk, Track, MapWater, MapRoad, MapInk)
+    val all = Std.all + listOf(NewBg, NewInk, Track, OkSoft, Wish, MapWater, MapRoad, MapInk)
 }
 
 val AppFonts = KitFonts(

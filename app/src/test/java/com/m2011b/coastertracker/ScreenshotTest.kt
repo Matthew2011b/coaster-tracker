@@ -4,7 +4,13 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.m2011b.coastertracker.data.Milestone
+import com.m2011b.coastertracker.data.Park
 import com.m2011b.coastertracker.data.Repo
+import org.junit.Assert.assertTrue
 import com.m2011b.kit.theme.KitTheme
 import com.m2011b.kit.theme.ThemeMode
 import com.m2011b.kit.theme.ThemeStore
@@ -158,5 +164,67 @@ class ScreenshotTest {
         shot("14_small_log")
         go("Stats"); shot("15_small_stats")
         go("Settings"); shot("16_small_settings")
+    }
+
+    @Test fun quickLog() {
+        val (_, repo) = start("quick")
+        rule.onNodeWithContentDescription("Quick list").performClick()
+        shot("23_quick_log")
+        assertTrue(repo.quickLog)
+        rule.onNodeWithContentDescription("Picker view").performClick()
+        rule.onNodeWithText("LOG", substring = true).assertExists()
+    }
+
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h640dp-xhdpi")
+    fun smallQuickLog() {
+        val (_, repo) = start("smallquick")
+        rule.runOnUiThread { repo.updateQuickLog(true) }
+        shot("24_small_quick_log")
+    }
+
+    @Test fun modelAndMakerMaps() {
+        Basemap.get(ApplicationProvider.getApplicationContext()); MapConfig.pulse = false
+        val (_, repo) = start("modelmap", "stats", Sub.Model("Vekoma|Boomerang"))
+        rule.onAllNodesWithContentDescription("Add", substring = true).onFirst().performClick()  // star the model
+        assertTrue(repo.wishes.model("Vekoma|Boomerang"))
+        shot("25_model_starred")
+        rule.onNodeWithContentDescription("Map view").performClick()
+        Thread.sleep(300); rule.waitForIdle()
+        shot("26_model_map")
+    }
+
+    @Test fun makerMap() {
+        Basemap.get(ApplicationProvider.getApplicationContext()); MapConfig.pulse = false
+        start("makermap", "stats", Sub.Make("Bolliger & Mabillard"))
+        rule.onNodeWithContentDescription("Map view").performClick()
+        Thread.sleep(300); rule.waitForIdle()
+        shot("27_maker_map")
+    }
+
+    @Test fun wishlistOnParksMap() {
+        Basemap.get(ApplicationProvider.getApplicationContext()); MapConfig.pulse = false
+        val (_, repo) = start("wishmap", "parks")
+        rule.runOnUiThread { repo.toggleWishModel("Vekoma|Boomerang"); repo.toggleWishModel("Bolliger & Mabillard|Wing Coaster") }
+        rule.onNodeWithContentDescription("Map view").performClick()
+        Thread.sleep(300); rule.waitForIdle()
+        shot("28_parks_map_wishlist")
+    }
+
+    @Test fun completionCards() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val theme = ThemeStore(ctx, AppTokens.all, "theme_cards")
+        val day = LocalDate.of(2026, 11, 9)
+        val cards = listOf(
+            "29_card_park" to Milestone.ParkDone(Park(1, "Cedar Point", "US", null, null, "Sandusky", "Ohio"), 17, 12, 2026, 42),
+            "30_card_maker_us" to Milestone.MakeDone("Bolliger & Mabillard", false, 28, 9, 14, 42, day),
+            "31_card_maker_world" to Milestone.MakeDone("Bolliger & Mabillard", true, 133, 11, 19, 42, day),
+            "32_card_model_us" to Milestone.ModelDone("Bolliger & Mabillard", "Wing Coaster", false, 3, day, 42),
+            "33_card_model_world" to Milestone.ModelDone("Bolliger & Mabillard", "Wing Coaster", true, 7, day, 42),
+        )
+        var shown by mutableStateOf(cards.first().second as Milestone)
+        rule.setContent { KitTheme(theme, AppFonts) { CelebrationDialog(shown) {} } }
+        for ((name, m) in cards) { rule.runOnUiThread { shown = m }; dialog(name) }
+        rule.runOnUiThread { theme.changeMode(ThemeMode.Dark); shown = cards.first().second }
+        dialog("34_card_park_dark")
     }
 }

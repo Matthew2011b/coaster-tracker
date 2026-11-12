@@ -47,6 +47,8 @@ private val NAV = listOf(
 
 private const val MAP_ICON = "M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z M9 4v14 M15 6v14"
 private const val LIST_ICON = "M8 6h13 M8 12h13 M8 18h13 M3.5 6h.01 M3.5 12h.01 M3.5 18h.01"
+private const val TILES_ICON = "M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z"
+private const val PICKER_ICON = "M4 5h16v6H4z M4 15h16 M4 19h10 M14.5 7.5l1.5 1.5 1.5-1.5"
 
 /** A screen opened on top of a tab. */
 sealed interface Sub {
@@ -73,6 +75,7 @@ internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: S
     var goingBack by remember { mutableStateOf(false) }
     val saved = rememberSaveableStateHolder()
     var parksMap by rememberSaveable { mutableStateOf(false) }
+    val subMaps = remember { mutableStateMapOf<Int, Boolean>() }  // map view on model and maker pages, per page
     var here by remember { mutableStateOf<LatLon?>(null) }
     val askPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (ok) locator.locate { here = it }
@@ -91,7 +94,7 @@ internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: S
         if (history.size > 1) {
             val gone = history.last()
             history = history.dropLast(1)
-            if (gone.sub != null && history.none { it.id == gone.id }) saved.removeState(gone.stateKey)
+            if (gone.sub != null && history.none { it.id == gone.id }) { saved.removeState(gone.stateKey); subMaps.remove(gone.id) }
         } else history = listOf(Entry(nextId++, NAV.first().id, null))
     }
     val canGoBack = history.size > 1 || cur.tab != NAV.first().id || cur.sub != null
@@ -109,9 +112,17 @@ internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: S
             onNavigate = { tab -> if (tab != cur.tab || cur.sub != null) push(tab, null) },
             subTitle = subTitle, showBackArrow = cur.sub != null,
             onBack = if (canGoBack) ({ back() }) else null,
-            action = if (cur.tab == "parks" && cur.sub == null) {
-                if (parksMap) BarAction("List view", LIST_ICON) { parksMap = false } else BarAction("Map view", MAP_ICON) { parksMap = true }
-            } else null,
+            action = when {
+                cur.tab == "parks" && cur.sub == null ->
+                    if (parksMap) BarAction("List view", LIST_ICON) { parksMap = false } else BarAction("Map view", MAP_ICON) { parksMap = true }
+                cur.tab == "log" && cur.sub == null ->
+                    if (repo.quickLog) BarAction("Picker view", PICKER_ICON) { repo.updateQuickLog(false) }
+                    else BarAction("Quick list", TILES_ICON) { repo.updateQuickLog(true) }
+                cur.sub is Sub.Model || cur.sub is Sub.Make ->
+                    if (subMaps[cur.id] == true) BarAction("List view", LIST_ICON) { subMaps[cur.id] = false }
+                    else BarAction("Map view", MAP_ICON) { subMaps[cur.id] = true }
+                else -> null
+            },
         ) {
             AnimatedContent(
                 targetState = cur,
@@ -131,12 +142,13 @@ internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: S
             ) { e ->
                 saved.SaveableStateProvider(e.stateKey) {
                     when (val o = e.sub) {
-                        is Sub.Model -> ModelDetailScreen(repo, o.key)
-                        is Sub.Make -> StatsScreen(repo, o.make, onModel = { open(Sub.Model(it)) }, onMake = {})
+                        is Sub.Model -> ModelDetailScreen(repo, o.key, subMaps[e.id] == true) { open(Sub.ParkDetail(it)) }
+                        is Sub.Make -> StatsScreen(repo, o.make, onModel = { open(Sub.Model(it)) }, onMake = {},
+                            showMap = subMaps[e.id] == true, onPark = { open(Sub.ParkDetail(it)) })
                         is Sub.ParkDetail -> ParkDetailScreen(repo, o.id) { open(Sub.Model(it)) }
                         Sub.Theme -> ThemeEditorScreen(theme)
                         null -> when (e.tab) {
-                            "log" -> LogScreen(repo)
+                            "log" -> LogScreen(repo, repo.quickLog)
                             "stats" -> StatsScreen(repo, null, onModel = { open(Sub.Model(it)) }, onMake = { open(Sub.Make(it)) })
                             "parks" -> ParksScreen(repo, parksMap) { open(Sub.ParkDetail(it)) }
                             "nearest" -> NearestScreen(repo, refreshLocation) { open(Sub.Model(it)) }
@@ -146,5 +158,6 @@ internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: S
                 }
             }
         }
+        repo.celebrations.firstOrNull()?.let { CelebrationDialog(it) { repo.dismissCelebration() } }
     }
 }

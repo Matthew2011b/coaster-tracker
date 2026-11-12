@@ -118,4 +118,79 @@ class Stats(
         .sortedWith(compareBy({ ridden(it) }, { it.name.lowercase() }))
 
     fun isNewModel(c: Coaster) = c.modelKey != null && !ridden(c) && (model(c.modelKey!!)?.ridden ?: 1) == 0
+
+    /** Parks with an installation matching [match] (operating, or ridden), for the model and maker maps. */
+    fun installParks(match: (Coaster) -> Boolean): List<ParkStat> =
+        counted.filter { it.parkId != null && match(it) && (ridden(it) || life(it) == Life.Operating) }.groupBy { it.parkId!! }
+            .mapNotNull { (pid, cs) ->
+                val park = parks[pid] ?: return@mapNotNull null
+                ParkStat(park, 0, cs.count { !ridden(it) }, cs.count { ridden(it) })
+            }
+
+    // ---------- Completion ----------
+
+    /** Coasters you could still ride or already have: operating ones plus anything logged. */
+    private fun rideable(c: Coaster) = ridden(c) || life(c) == Life.Operating
+
+    private fun scope(cs: List<Coaster>, us: Boolean) = cs.filter { rideable(it) && (!us || it.country == "US") }
+
+    fun modelSet(key: String, us: Boolean) = scope(counted.filter { it.modelKey == key }, us)
+    fun makeSet(make: String, us: Boolean) = scope(counted.filter { it.make == make }, us)
+    fun parkSet(parkId: Long) = atPark(parkId).filter { rideable(it) }
+
+    /** A set counts as done once every one is ridden. Models and makers need at least two to be worth a card. */
+    fun done(set: List<Coaster>, min: Int = 2) = set.size >= min && set.all { ridden(it) }
+
+    /** Parks to highlight on the map: somewhere you can still ride a starred coaster or a starred model. */
+    fun wishedParkIds(wishes: Wishes): Set<Long> = counted.filter {
+        it.parkId != null && !ridden(it) && life(it) == Life.Operating &&
+            (wishes.coaster(it.id) || it.modelKey?.let(wishes::model) == true)
+    }.map { it.parkId!! }.toSet()
 }
+
+/** Starred coasters (by id) and models (by make|model key). */
+data class Wishes(val coasters: Set<Long> = emptySet(), val models: Set<String> = emptySet()) {
+    fun coaster(id: Long) = id in coasters
+    fun model(key: String) = key in models
+}
+
+/** Something just finished by logging a ride, shown as a popup card. */
+sealed interface Milestone {
+    val creditNo: Int
+    data class ParkDone(val park: Park, val coasters: Int, val models: Int, val year: Int, override val creditNo: Int) : Milestone
+    data class ModelDone(val make: String, val model: String, val world: Boolean, val count: Int, val date: LocalDate, override val creditNo: Int) : Milestone
+    data class MakeDone(val make: String, val world: Boolean, val coasters: Int, val models: Int, val places: Int, override val creditNo: Int, val date: LocalDate) : Milestone
+}
+
+/** What logging [c] finished, comparing the stats from before and after the ride. */
+fun milestones(before: Stats, after: Stats, c: Coaster): List<Milestone> {
+    val out = ArrayList<Milestone>()
+    val n = after.credits
+    val usOnly = after.filters.usOnly
+    c.parkId?.let { pid ->
+        val set = after.parkSet(pid)
+        if (after.done(set, 1) && !before.done(before.parkSet(pid), 1)) after.parks[pid]?.let { pk ->
+            out += Milestone.ParkDone(pk, set.size, set.mapNotNull { it.modelKey }.toSet().size, after.today.year, n)
+        }
+    }
+    // World beats US when both finish at once (or when every one is in the US anyway).
+    fun scoped(get: Stats.(Boolean) -> List<Coaster>, make: (Boolean, List<Coaster>) -> Milestone) {
+        val worldNow = !usOnly && after.done(after.get(false)) && !before.done(before.get(false))
+        val usNow = c.country == "US" && after.done(after.get(true)) && !before.done(before.get(true))
+        when {
+            worldNow -> out += make(true, after.get(false))
+            usNow -> out += make(false, after.get(true))
+        }
+    }
+    c.modelKey?.let { key ->
+        scoped({ modelSet(key, it) }) { w, set -> Milestone.ModelDone(c.make!!, c.model!!, w, set.size, after.today, n) }
+    }
+    c.make?.let { mk ->
+        scoped({ makeSet(mk, it) }) { w, set ->
+            val places = if (w) set.mapNotNull { it.country }.toSet().size else set.mapNotNull { it.parkId }.toSet().size
+            Milestone.MakeDone(mk, w, set.size, set.mapNotNull { it.modelKey }.toSet().size, places, n, after.today)
+        }
+    }
+    return out
+}
+

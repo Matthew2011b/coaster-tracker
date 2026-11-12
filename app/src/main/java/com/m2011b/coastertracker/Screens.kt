@@ -30,7 +30,7 @@ import java.util.Locale
 
 /** Stats for everything, or (with [make]) for one manufacturer's models, opened from the Manufacturers view. */
 @Composable
-fun StatsScreen(repo: Repo, make: String?, onModel: (String) -> Unit, onMake: (String) -> Unit) {
+fun StatsScreen(repo: Repo, make: String?, onModel: (String) -> Unit, onMake: (String) -> Unit, showMap: Boolean = false, onPark: (Long) -> Unit = {}) {
     val p = LocalPalette.current
     val s = repo.stats
     var view by rememberSaveable { mutableIntStateOf(0) }
@@ -41,6 +41,10 @@ fun StatsScreen(repo: Repo, make: String?, onModel: (String) -> Unit, onMake: (S
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (make == null) Segmented(listOf("Models", "Manufacturers"), view) { view = it }
+        if (make != null && showMap) {
+            InstallMap(repo, onPark, Modifier.weight(1f)) { it.make == make }
+            return@Column
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (make != null) {
                 val mk = s.makes.firstOrNull { it.make == make }
@@ -106,7 +110,7 @@ private fun ProgressRow(title: String, sub: String, done: Int, total: Int, unit:
 // ---------- Model detail ----------
 
 @Composable
-fun ModelDetailScreen(repo: Repo, key: String) {
+fun ModelDetailScreen(repo: Repo, key: String, showMap: Boolean = false, onPark: (Long) -> Unit = {}) {
     val s = repo.stats
     val here = LocalHere.current
     val m = s.model(key)
@@ -117,7 +121,10 @@ fun ModelDetailScreen(repo: Repo, key: String) {
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Panel(Modifier.fillMaxWidth()) {
-            TwoLine(model, make)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TwoLine(model, make, Modifier.weight(1f))
+                WishStar(repo.wishes.model(key), "$make $model", size = 24) { repo.toggleWishModel(key) }
+            }
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.Bottom) {
                 Mono("$ridden / $total", size = 22, bold = true, muted = false, modifier = Modifier.weight(1f))
@@ -127,18 +134,33 @@ fun ModelDetailScreen(repo: Repo, key: String) {
             Spacer(Modifier.height(8.dp))
             ProgressBar(if (total == 0) 0.0 else ridden.toDouble() / total, ridden >= total && total > 0, height = 10)
         }
+        if (showMap) {
+            InstallMap(repo, onPark, Modifier.weight(1f)) { it.modelKey == key }
+            return@Column
+        }
         SectionHead("Installations", if (here != null) "Ridden first, then nearest" else "Ridden first")
         ListBox(Modifier.weight(1f)) {
             items(rows) { (c, d) ->  // no keys: the order changes once location arrives
-                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     TwoLine(c.name, parkLine(c, repo.park(c.parkId)), Modifier.weight(1f))
                     Spacer(Modifier.width(8.dp))
                     if (s.ridden(c)) RiddenMark() else Mono(miles(d).ifEmpty { c.country ?: "" })
+                    WishStar(repo.wishes.coaster(c.id), c.name) { repo.toggleWishCoaster(c.id) }
                 }
                 RowDivider()
             }
         }
     }
+}
+
+/** Map of the parks with installations matching [match]: pins count the unridden ones, green dots are done. */
+@Composable
+fun InstallMap(repo: Repo, onPark: (Long) -> Unit, modifier: Modifier, match: (com.m2011b.coastertracker.data.Coaster) -> Boolean) {
+    val s = repo.stats
+    val all = remember(s) { s.installParks(match) }
+    ParksMap(all.filter { it.unridden > 0 }, all.filter { it.unridden == 0 }, byModels = false, onPark = onPark,
+        modifier = modifier.fillMaxWidth(), wished = remember(s, repo.wishes) { s.wishedParkIds(repo.wishes) }, fitAll = true,
+        cardSub = { r -> if (r.unridden == 0) "All ridden" else if (r.ridden == 0) "${r.unridden} to ride" else "${r.ridden} ridden · ${r.unridden} to ride" })
 }
 
 private fun parkLine(c: Coaster, park: com.m2011b.coastertracker.data.Park?) =
@@ -162,7 +184,8 @@ fun ParksScreen(repo: Repo, showMap: Boolean = false, onPark: (Long) -> Unit) {
         if (!usLocked) Segmented(listOf("United States", "Worldwide"), region) { region = it }
         if (showMap) {
             val all = remember(s, region, usLocked) { s.parkStats(usOnly = usLocked || region == 0, includeDone = true) }
-            ParksMap(all.filter { it.unridden > 0 }, all.filter { it.unridden == 0 }, byModels == 0, onPark, Modifier.weight(1f).fillMaxWidth())
+            ParksMap(all.filter { it.unridden > 0 }, all.filter { it.unridden == 0 }, byModels == 0, onPark, Modifier.weight(1f).fillMaxWidth(),
+                wished = remember(s, repo.wishes) { s.wishedParkIds(repo.wishes) })
             return@Column
         }
         ListBox(Modifier.weight(1f)) {
@@ -196,7 +219,8 @@ fun ParkDetailScreen(repo: Repo, parkId: Long, onModel: (String) -> Unit) {
         SectionHead("Coasters", "${list.count { s.ridden(it) }} / ${list.size} ridden")
         ListBox(Modifier.weight(1f)) {
             items(list, key = { it.id }) { c ->
-                CoasterRow(c, s.ridden(c), s.isNewModel(c), onClick = { c.modelKey?.let(onModel) }, onLongClick = { editing = c })
+                CoasterRow(c, s.ridden(c), s.isNewModel(c), onClick = { c.modelKey?.let(onModel) }, onLongClick = { editing = c },
+                    wished = repo.wishes.coaster(c.id), onWish = { repo.toggleWishCoaster(c.id) })
                 RowDivider()
             }
         }
@@ -211,7 +235,10 @@ fun NearestScreen(repo: Repo, refreshLocation: () -> Unit, onModel: (String) -> 
     val p = LocalPalette.current
     val here = LocalHere.current
     val s = repo.stats
-    val rows = remember(s, here) { here?.let { s.nearestNewModels(it).take(100) }.orEmpty() }
+    val wishes = repo.wishes
+    val rows = remember(s, here, wishes) {
+        here?.let { h -> s.nearestNewModels(h).sortedBy { !wishes.model(it.stat.key) }.take(100) }.orEmpty()
+    }
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth().clip(BoxShape).background(p.surface).border(1.dp, p.line, BoxShape).padding(start = 14.dp),
             verticalAlignment = Alignment.CenterVertically) {
@@ -221,7 +248,8 @@ fun NearestScreen(repo: Repo, refreshLocation: () -> Unit, onModel: (String) -> 
         SectionHead("Closest place to ride each model you haven't")
         ListBox(Modifier.weight(1f)) {
             items(rows, key = { it.stat.key }) { r ->
-                ValueRow("${shortMake(r.stat.make)} ${r.stat.model}", "${r.coaster.name} · ${r.park.name}", miles(r.miles), onClick = { onModel(r.stat.key) })
+                ValueRow((if (wishes.model(r.stat.key)) "★ " else "") + "${shortMake(r.stat.make)} ${r.stat.model}", "${r.coaster.name} · ${r.park.name}",
+                    miles(r.miles), onClick = { onModel(r.stat.key) })
                 RowDivider()
             }
         }

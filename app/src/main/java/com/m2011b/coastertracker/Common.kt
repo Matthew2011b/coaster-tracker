@@ -29,6 +29,9 @@ import com.m2011b.coastertracker.data.Coaster
 import com.m2011b.kit.theme.LocalKitFonts
 import com.m2011b.kit.theme.LocalPalette
 import com.m2011b.kit.ui.BoxShape
+import com.m2011b.kit.ui.outlineIcon
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import java.util.Locale
 
 /** Bordered box whose list scrolls inside it, so the screen itself never scrolls. */
@@ -103,15 +106,36 @@ fun miles(d: Double?): String {
     return if (v < 10) String.format(Locale.US, "%.1f %s", v, u) else String.format(Locale.US, "%,d %s", v.toLong(), u)
 }
 
-/** Coaster row used on the log and park screens: tap selects, long-press edits. */
+private const val STAR = "M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z"
+private val starOff = outlineIcon("Star", STAR)
+private val starOn = androidx.compose.ui.graphics.vector.ImageVector.Builder("Starred", 24.dp, 24.dp, 24f, 24f).apply {
+    addPath(androidx.compose.ui.graphics.vector.PathParser().parsePathString(STAR).toNodes(),
+        fill = androidx.compose.ui.graphics.SolidColor(androidx.compose.ui.graphics.Color.Black),
+        stroke = androidx.compose.ui.graphics.SolidColor(androidx.compose.ui.graphics.Color.Black), strokeLineWidth = 2f,
+        strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round)
+}.build()
+
+/** Wishlist star: outline when off, filled yellow when on. */
+@Composable
+fun WishStar(on: Boolean, label: String, size: Int = 22, onToggle: () -> Unit) {
+    val p = LocalPalette.current
+    Box(
+        Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable(onClick = onToggle)
+            .semantics { contentDescription = if (on) "Remove $label from wishlist" else "Add $label to wishlist" },
+        contentAlignment = Alignment.Center,
+    ) { Icon(if (on) starOn else starOff, contentDescription = null, tint = if (on) p[AppTokens.Wish] else p.muted, modifier = Modifier.size(size.dp)) }
+}
+
+/** Coaster row used on the log and park screens: tap selects, long-press edits, optional wishlist star. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun CoasterRow(c: Coaster, ridden: Boolean, newModel: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+fun CoasterRow(c: Coaster, ridden: Boolean, newModel: Boolean, onClick: () -> Unit, onLongClick: () -> Unit,
+               wished: Boolean? = null, onWish: () -> Unit = {}) {
     val p = LocalPalette.current
     Row(
         Modifier.fillMaxWidth().background(if (newModel) p[AppTokens.NewBg] else p.surface)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(start = 14.dp, end = if (wished != null) 4.dp else 14.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         TwoLine(c.name, modelLine(c), Modifier.weight(1f), bold = !ridden)
@@ -121,6 +145,7 @@ fun CoasterRow(c: Coaster, ridden: Boolean, newModel: Boolean, onClick: () -> Un
             newModel -> Text("New model", color = p[AppTokens.NewInk], fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             else -> Text("Not ridden", color = p.muted, fontSize = 12.sp)
         }
+        if (wished != null) { Spacer(Modifier.width(2.dp)); WishStar(wished, c.name, onToggle = onWish) }
     }
 }
 

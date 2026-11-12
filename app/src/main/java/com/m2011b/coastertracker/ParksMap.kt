@@ -1,6 +1,7 @@
 package com.m2011b.coastertracker
 
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -61,7 +62,10 @@ private const val MAX_ZOOM = 11f
  * small dots in the ridden color. Pinch or double-tap to zoom, drag to pan, tap a pin for its card.
  */
 @Composable
-fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPark: (Long) -> Unit, modifier: Modifier = Modifier) {
+fun ParksMap(
+    rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPark: (Long) -> Unit, modifier: Modifier = Modifier,
+    wished: Set<Long> = emptySet(), fitAll: Boolean = false, cardSub: ((ParkStat) -> String)? = null,
+) {
     val p = LocalPalette.current
     val ctx = LocalContext.current
     val here = LocalHere.current
@@ -73,6 +77,12 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
             0f, 1f, infiniteRepeatable(tween(2000, easing = LinearOutSlowInEasing)), label = "pulse",
         ).value
     } else 0f
+    // Wishlist parks: a small yellow star on the pin that slowly twinkles (never a moving ring, which means "you").
+    val twinkle = if (MapConfig.pulse && wished.isNotEmpty()) {
+        rememberInfiniteTransition(label = "wish").animateFloat(
+            0.25f, 1f, infiniteRepeatable(tween(1300), RepeatMode.Reverse), label = "twinkle",
+        ).value
+    } else 1f
     val map by produceState<Basemap?>(null) { value = withContext(Dispatchers.Default) { Basemap.get(ctx) } }
 
     // View: world point at the center and zoom (256 dp tiles at zoom 0), saved across visits.
@@ -99,11 +109,17 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
     LaunchedEffect(size, pins.isNotEmpty()) {
         if (!cx.isNaN() || size == IntSize.Zero) return@LaunchedEffect
         val h = here
-        if (h != null) { cx = Basemap.x(h.second); cy = Basemap.y(h.first); zoom = 7f; return@LaunchedEffect }
-        val open = pins.filter { !it.done }.ifEmpty { pins }
+        if (h != null && !fitAll) { cx = Basemap.x(h.second); cy = Basemap.y(h.first); zoom = 7f; return@LaunchedEffect }
+        // Model and maker maps: frame the closest few installations around you, not the whole world.
+        val open = if (fitAll) {
+            if (h != null) pins.sortedBy { hypot(it.x - Basemap.x(h.second), it.y - Basemap.y(h.first)) }.take(6) +
+                Pin(pins.firstOrNull()?.stat ?: return@LaunchedEffect, Basemap.x(h.second), Basemap.y(h.first), 0, true)
+            else pins
+        } else pins.filter { !it.done }.ifEmpty { pins }
         if (open.isEmpty()) { cx = Basemap.x(-96.0); cy = Basemap.y(39.0); zoom = 3.5f; return@LaunchedEffect }
         val l = open.minOf { it.x }; val r = open.maxOf { it.x }; val t = open.minOf { it.y }; val b = open.maxOf { it.y }
         cx = (l + r) / 2; cy = (t + b) / 2
+        if (r - l < 1e-9 && b - t < 1e-9) { zoom = 8f; return@LaunchedEffect }
         val fit = min(size.width * 0.85 / max(r - l, 1.0), size.height * 0.85 / max(b - t, 1.0))  // px per world unit
         zoom = log2(fit * Basemap.WORLD / (256 * density)).toFloat().coerceIn(MIN_ZOOM, 9f)
     }
@@ -115,7 +131,7 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
 
     val land = p.bg; val water = p[AppTokens.MapWater]; val road = p[AppTokens.MapRoad]; val ink = p[AppTokens.MapInk]
     val pinNew = p.accent; val pinOther = p.accent;  // pins stay accent so they never read as the orange you-are-here dot
-    val okC = p.ok; val you = p.headerTrack
+    val okC = p.ok; val you = p.headerTrack; val wish = p[AppTokens.Wish]
     val labelStyle = TextStyle(color = ink, fontSize = 11.sp, fontFamily = sans)
     val pinStyle = TextStyle(color = p.btnInk, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = sans)
 
@@ -212,10 +228,16 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
                     drawCircle(p.surface, small, at); drawCircle(okC, small - ring, at)
                     continue
                 }
-                drawCircle(p.surface, r, at)
+                val starred = pin.stat.park.id in wished
+                drawCircle(if (starred) wish else p.surface, if (starred) r + ring else r, at)
                 drawCircle(if (!byModels) pinOther else if (pin.n == 0) p.muted else pinNew, r - ring, at)
                 val t = measurer.measure("${pin.n}", pinStyle)
                 drawText(t, topLeft = Offset(at.x - t.size.width / 2f, at.y - t.size.height / 2f))
+                if (starred) {
+                    val c = at + Offset(r * 0.8f, -r * 0.8f)
+                    drawPath(starPath(c, 7.5f * density), p.surface)
+                    drawPath(starPath(c, 6f * density), wish.copy(alpha = twinkle))
+                }
             }
 
             // You are here: brand-orange dot with a soft halo, on top of everything.
@@ -237,13 +259,24 @@ fun ParksMap(rows: List<ParkStat>, done: List<ParkStat>, byModels: Boolean, onPa
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(r.park.name, color = p.ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    val sub = if (r.unridden == 0) "All ridden" else "${r.newModels} new models · ${r.unridden} unridden coasters"
+                    val sub = cardSub?.invoke(r) ?: if (r.unridden == 0) "All ridden" else "${r.newModels} new models · ${r.unridden} unridden coasters"
                     Text(listOfNotNull(r.park.place, sub).joinToString(" · "), color = p.muted, fontSize = 12.sp)
                 }
                 Text("Open ›", color = p.accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
+}
+
+/** Five-point star centered on [c] with outer radius [r]. */
+private fun starPath(c: Offset, r: Float) = androidx.compose.ui.graphics.Path().apply {
+    for (i in 0 until 10) {
+        val a = Math.PI / 5 * i - Math.PI / 2
+        val rr = if (i % 2 == 0) r else r * 0.45f
+        val x = c.x + (rr * kotlin.math.cos(a)).toFloat(); val y = c.y + (rr * kotlin.math.sin(a)).toFloat()
+        if (i == 0) moveTo(x, y) else lineTo(x, y)
+    }
+    close()
 }
 
 /** Test hook: screenshot tests turn the never-ending location pulse off so the UI can go idle. */

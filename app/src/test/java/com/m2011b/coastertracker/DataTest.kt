@@ -234,4 +234,46 @@ class DataTest {
         assertEquals(mapOf(banshee.id to "2019-07-01"), db.loadRides())  // rides untouched
         assertFalse(db.mergeBundled(LocalDate.of(2026, 11, 10)))         // only once per data version
     }
+
+    @Test fun loggingTheLastOneFinishesParksModelsAndMakers() {
+        fun co(id: Long, park: Long, cc: String, model: String) =
+            Coaster(id, "C$id", park, "P$park", cc, "park", "operating", null, null, null, "Bolliger & Mabillard", model, 40.0, 100.0)
+        val parks = mapOf(1L to Park(1, "One", "US", 1.0, 1.0), 2L to Park(2, "Two", "DE", 2.0, 2.0), 3L to Park(3, "Three", "US", 3.0, 3.0))
+        val cs = listOf(co(1, 1, "US", "Wing Coaster"), co(2, 1, "US", "Dive Coaster"), co(3, 2, "DE", "Wing Coaster"), co(4, 3, "US", "Wing Coaster"))
+        fun st(vararg ridden: Long) = Stats(cs, parks, ridden.associateWith { "2026-11-09" }, Filters(), today, ModelSet.EMPTY)
+
+        // Last US Wing Coaster (abroad still to go): park Three and the US model card, no maker card yet.
+        val a = milestones(st(1), st(1, 4), cs[3])
+        assertEquals(2, a.size)
+        assertEquals("Three", (a[0] as Milestone.ParkDone).park.name)
+        assertEquals(false, (a[1] as Milestone.ModelDone).world)
+        // The one abroad: worldwide model card.
+        val b = milestones(st(1, 4), st(1, 3, 4), cs[2])
+        assertTrue(b.any { it is Milestone.ModelDone && it.world && it.count == 3 })
+        // Last B&M anywhere: one maker card, worldwide (beats US when both finish at once). Dive is a one-off: no card.
+        val c = milestones(st(1, 3, 4), st(1, 2, 3, 4), cs[1])
+        assertEquals(listOf(true), c.filterIsInstance<Milestone.MakeDone>().map { it.world })
+        assertEquals(2, c.filterIsInstance<Milestone.MakeDone>().single().places)  // US and DE
+        assertTrue(c.none { it is Milestone.ModelDone })
+        assertTrue(c.any { it is Milestone.ParkDone })
+        // US-only users only ever get US cards.
+        val us = Filters(usOnly = true)
+        val d = milestones(Stats(cs, parks, mapOf(1L to "x", 2L to "x"), us, today, ModelSet.EMPTY),
+            Stats(cs, parks, mapOf(1L to "x", 2L to "x", 4L to "x"), us, today, ModelSet.EMPTY), cs[3])
+        assertTrue(d.filterIsInstance<Milestone.MakeDone>().single().let { !it.world && it.coasters == 3 })
+
+        // Wishlist: a starred model lights up every park where one is still to ride.
+        assertEquals(setOf(2L, 3L), st(1).wishedParkIds(Wishes(models = setOf("Bolliger & Mabillard|Wing Coaster"))))
+        assertEquals(setOf(1L), st(1).wishedParkIds(Wishes(coasters = setOf(2L))))
+        assertEquals(emptySet<Long>(), st(1, 2).wishedParkIds(Wishes(coasters = setOf(2L))))
+    }
+
+    @Test fun wishesAndQuickModeAreRemembered() {
+        val r = repo("wish")
+        r.toggleWishCoaster(7907); r.toggleWishModel("Vekoma|Boomerang"); r.updateQuickLog(true)
+        val again = repo("wish")
+        assertTrue(again.wishes.coaster(7907) && again.wishes.model("Vekoma|Boomerang") && again.quickLog)
+        again.toggleWishCoaster(7907)
+        assertFalse(repo("wish").wishes.coaster(7907))
+    }
 }

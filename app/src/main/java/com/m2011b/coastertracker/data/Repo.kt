@@ -30,6 +30,26 @@ class Repo(context: Context, dbName: String = "coasters.db", prefsName: String =
     var dataAsOf by mutableStateOf(db.meta("data_as_of"))
         private set
 
+    /** Starred coasters and models, kept in prefs as "c:<id>" and "m:<make|model>". */
+    var wishes by mutableStateOf(readWishes())
+        private set
+    private fun readWishes(): Wishes {
+        val raw = prefs.getStringSet("wish", emptySet()).orEmpty()
+        return Wishes(raw.filter { it.startsWith("c:") }.mapNotNull { it.drop(2).toLongOrNull() }.toSet(),
+            raw.filter { it.startsWith("m:") }.map { it.drop(2) }.toSet())
+    }
+    private fun saveWishes(w: Wishes) {
+        wishes = w
+        prefs.edit().putStringSet("wish", w.coasters.map { "c:$it" }.toSet() + w.models.map { "m:$it" }).apply()
+    }
+    fun toggleWishCoaster(id: Long) = saveWishes(wishes.copy(coasters = wishes.coasters.let { if (id in it) it - id else it + id }))
+    fun toggleWishModel(key: String) = saveWishes(wishes.copy(models = wishes.models.let { if (key in it) it - key else it + key }))
+
+    /** Log a Ride shows the quick tile list instead of the picker. */
+    var quickLog by mutableStateOf(prefs.getBoolean("quick_log", false))
+        private set
+    fun updateQuickLog(on: Boolean) { quickLog = on; prefs.edit().putBoolean("quick_log", on).apply() }
+
     private var coasters = db.loadCoasters()
     private var parks = db.loadParks().associateBy { it.id }
     private var rides = db.loadRides()
@@ -47,7 +67,18 @@ class Repo(context: Context, dbName: String = "coasters.db", prefsName: String =
     val allParks: Collection<Park> get() = parks.values
     fun park(id: Long?) = id?.let { parks[it] }
 
-    fun log(id: Long) { db.addRide(id, today().toString()); refresh() }
+    /** Logs a ride today and returns anything it finished (park, model, manufacturer). */
+    fun log(id: Long): List<Milestone> {
+        val before = stats
+        db.addRide(id, today().toString()); refresh()
+        val c = coasters.firstOrNull { it.id == id } ?: return emptyList()
+        return milestones(before, stats, c).also { celebrations = celebrations + it }
+    }
+
+    /** Completion cards waiting to be shown, oldest first. */
+    var celebrations by mutableStateOf<List<Milestone>>(emptyList())
+        private set
+    fun dismissCelebration() { celebrations = celebrations.drop(1) }
     fun unlog(id: Long) { db.removeRide(id); refresh() }
 
     fun edit(id: Long, make: String, model: String) {
