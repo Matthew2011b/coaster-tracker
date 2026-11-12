@@ -69,7 +69,7 @@ fun SettingsScreen(repo: Repo, theme: ThemeStore, drive: DriveBackup, onColors: 
             }
         }
 
-        Panel(Modifier.fillMaxWidth(), PaddingValues(start = 16.dp, end = 12.dp, top = 4.dp, bottom = 4.dp)) {
+        Panel(Modifier.fillMaxWidth(), PaddingValues(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 6.dp)) {
             ToggleRow("Include defunct coasters", repo.filters.includeDefunct) { repo.updateFilters(repo.filters.copy(includeDefunct = it)) }
             ToggleRow("Include kiddie coasters", repo.filters.includeKiddie) { repo.updateFilters(repo.filters.copy(includeKiddie = it)) }
             ToggleRow("Include carnival coasters", repo.filters.includeCarnival) { repo.updateFilters(repo.filters.copy(includeCarnival = it)) }
@@ -184,10 +184,13 @@ private fun Swatch(name: String, on: Boolean, onClick: () -> Unit, dot: @Composa
 @Composable
 private fun ToggleRow(label: String, on: Boolean, onChange: (Boolean) -> Unit) {
     val p = LocalPalette.current
-    Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable { onChange(!on) }, verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = p.ink, fontSize = 15.sp, modifier = Modifier.weight(1f))
-        Switch(on, onCheckedChange = onChange, colors = SwitchDefaults.colors(
-            checkedThumbColor = p.btnInk, checkedTrackColor = p.accent, uncheckedThumbColor = p.muted, uncheckedTrackColor = p.surface,
-            uncheckedBorderColor = p.line))
+    // The whole row is the tap target, so the switch can drop Material's 48dp minimum and the rows can sit closer.
+    CompositionLocalProvider(androidx.compose.material3.LocalMinimumInteractiveComponentSize provides 0.dp) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).clickable { onChange(!on) }, verticalAlignment = Alignment.CenterVertically) {
+            Text(label, color = p.ink, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            Switch(on, onCheckedChange = onChange, colors = SwitchDefaults.colors(
+                checkedThumbColor = p.btnInk, checkedTrackColor = p.accent, uncheckedThumbColor = p.muted, uncheckedTrackColor = p.surface,
+                uncheckedBorderColor = p.line))
+        }
     }
 }
