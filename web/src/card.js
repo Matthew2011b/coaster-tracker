@@ -108,11 +108,14 @@ export function maker({ make, world, coasters, models, places, no, date, generic
   const ink = world ? "#4A3510" : "#2B3036", hi = world ? "rgba(255,248,220,.6)" : "rgba(255,255,255,.6)";
   const R = W - E, B = H - E, col = R - 80 - 280, lx = E + 80;
   const nm = fit(make, col - lx - 40, 84, 50);
-  const blockH = 34 + 20 + nm.size * 1.08 * nm.lines.length + 40 + 60;
+  const blockH = 34 + 20 + nm.size * 1.08 * nm.lines.length + (generic ? 0 : 40) + 60;
   let y = (E + B) / 2 - blockH / 2 + 28;
   const engr = (t, x, yy, size, opts = "") => `<text x="${x}" y="${yy + 2}" font-family="${SANS}" font-size="${size}" font-weight="600" fill="${hi}" ${opts}>${esc(t)}</text>
     <text x="${x}" y="${yy}" font-family="${SANS}" font-size="${size}" font-weight="600" fill="${ink}" ${opts}>${esc(t)}</text>`;
-  const kicker = engr(`MANUFACTURER COMPLETE · ${world ? "WORLDWIDE" : "UNITED STATES"}`, lx, y, 26, 'letter-spacing="5"');
+  const kt = `MANUFACTURER COMPLETE · ${world ? "WORLDWIDE" : "UNITED STATES"}`;
+  let ks = 26;
+  while (width(kt, ks) + kt.length * ks * 0.19 > col - lx - 40 && ks > 16) ks -= 1;  // letter spacing is ~0.19 em
+  const kicker = engr(kt, lx, y, ks, `letter-spacing="${(ks * 0.19).toFixed(1)}"`);
   y += 26 + 20 + nm.size * 0.82;
   const nameT = nm.lines.map((l, i) => engr(l, lx, y + i * nm.size * 1.08, nm.size)).join("");
   y += (nm.lines.length - 1) * nm.size * 1.08 + 46;
@@ -144,7 +147,7 @@ export function model({ make, model: md, world, count, no, date, generic = false
   let grid = "";
   for (let x = E; x < W; x += 36) grid += `<line x1="${x}" y1="0" x2="${x}" y2="${H}" stroke="#fff" stroke-opacity=".07" stroke-width="2"/>`;
   for (let y = E; y < H; y += 36) grid += `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#fff" stroke-opacity=".07" stroke-width="2"/>`;
-  const st = `${world ? "WORLD" : "US"} COMPLETE`, sw = width(st, 34) + 14 * 2.2 + 40;
+  const st = `${world ? "WORLD" : "US"} COMPLETE`, sw = width(st, 34) + st.length * 4 + 56;  // text plus letter spacing and padding
   const nm = fit(md, iw - 64 - sw - 40, 80, 48);
   const titleY = T + 24 + nm.size * 0.82;
   const byY = titleY + (nm.lines.length - 1) * nm.size * 1.06 + 46;

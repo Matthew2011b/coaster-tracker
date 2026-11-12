@@ -23,6 +23,7 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.platform.LocalContext
@@ -71,21 +72,27 @@ fun CelebrationDialog(m: Milestone, onClose: () -> Unit) {
                     is Milestone.ModelDone -> BlueprintCard(m)
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                PrimaryButton("SHARE", Modifier.weight(1f)) {
-                    scope.launch { share(ctx, { layer.toImageBitmap() }, 0xFFDADAD7.toInt(), shareText(m)) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                PrimaryButton("SHARE", Modifier.weight(1.1f)) { shareLink(ctx, ShareLinks.message(m)) }
+                SecondaryButton("Share image", Modifier.weight(1f)) {
+                    scope.launch { share(ctx, { layer.toImageBitmap() }, 0xFFDADAD7.toInt(), "${ShareLinks.title(m)} ${ShareLinks.link(m)}") }
                 }
-                SecondaryButton("Close", Modifier.width(110.dp), onClick = onClose)
+                SecondaryButton("Close", Modifier.width(76.dp), onClick = onClose)
             }
         }
     }
 }
 
-fun shareText(m: Milestone): String = when (m) {
-    is Milestone.ParkDone -> "Just rode every coaster at ${m.park.name}."
-    is Milestone.ModelDone -> "Just finished every ${shortMake(m.make)} ${m.model} ${if (m.world) "in the world" else "in the US"}."
-    is Milestone.MakeDone -> "Just rode every ${m.make} coaster ${if (m.world) "in the world" else "in the US"}."
-} + " Tracked with Lift Hill."
+/** Shares just the line and link: chat apps turn the link into one message with the card as its preview. */
+private fun shareLink(ctx: Context, text: String) {
+    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+    try {
+        ctx.startActivity(Intent.createChooser(send, "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (e: Exception) {
+        android.util.Log.e("LiftHill", "share failed", e)
+        android.widget.Toast.makeText(ctx, "Couldn't share", android.widget.Toast.LENGTH_SHORT).show()
+    }
+}
 
 /** Saves the card on a margin of page color (so notches and corners don't show as black) and opens the share sheet. */
 private suspend fun share(ctx: Context, img: suspend () -> ImageBitmap, bg: Int, text: String) = try {
@@ -100,8 +107,12 @@ internal fun shareImage(ctx: Context, img: ImageBitmap, bg: Int, text: String) {
     val raw = img.asAndroidBitmap()
     val card = if (android.os.Build.VERSION.SDK_INT >= 26 && raw.config == Bitmap.Config.HARDWARE) raw.copy(Bitmap.Config.ARGB_8888, false) else raw
     val pad = card.width / 14
-    val out = Bitmap.createBitmap(card.width + 2 * pad, card.height + 2 * pad, Bitmap.Config.ARGB_8888)
-    android.graphics.Canvas(out).apply { drawColor(bg); drawBitmap(card, pad.toFloat(), pad.toFloat(), null) }
+    val foot = card.width / 6  // the Lift Hill strip under the card, so the name travels with the image
+    val out = Bitmap.createBitmap(card.width + 2 * pad, card.height + 2 * pad + foot, Bitmap.Config.ARGB_8888)
+    android.graphics.Canvas(out).apply {
+        drawColor(bg); drawBitmap(card, pad.toFloat(), pad.toFloat(), null)
+        drawFooter(ctx, this, pad.toFloat(), (pad + card.height).toFloat() + foot * 0.2f, card.width.toFloat(), foot * 0.6f)
+    }
     val dir = File(ctx.cacheDir, "shares").apply { mkdirs() }
     val f = File(dir, "lift-hill.png")
     f.outputStream().use { out.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -110,6 +121,21 @@ internal fun shareImage(ctx: Context, img: ImageBitmap, bg: Int, text: String) {
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     send.clipData = android.content.ClipData.newRawUri(null, uri)  // lets the share sheet preview the image
     ctx.startActivity(Intent.createChooser(send, "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+}
+
+/** App icon, "Lift Hill" and "Track your coaster credits", in a row [h] tall. */
+private fun drawFooter(ctx: Context, c: android.graphics.Canvas, x: Float, y: Float, w: Float, h: Float) {
+    val icon = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.ic_launcher_fg)
+    val bgPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF25282A.toInt() }
+    c.drawRoundRect(x, y, x + h, y + h, h * 0.22f, h * 0.22f, bgPaint)
+    icon?.setBounds((x - h * 0.25f).toInt(), (y - h * 0.25f).toInt(), (x + h * 1.25f).toInt(), (y + h * 1.25f).toInt())
+    icon?.draw(c)
+    val bold = androidx.core.content.res.ResourcesCompat.getFont(ctx, R.font.plex_sans_semibold)
+    val regular = androidx.core.content.res.ResourcesCompat.getFont(ctx, R.font.plex_sans_regular)
+    val t1 = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF25282A.toInt(); textSize = h * 0.42f; typeface = bold }
+    val t2 = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF5C5F62.toInt(); textSize = h * 0.32f; typeface = regular }
+    c.drawText("Lift Hill", x + h * 1.3f, y + h * 0.45f, t1)
+    c.drawText("Track your coaster credits", x + h * 1.3f, y + h * 0.92f, t2)
 }
 
 private val MONTH = DateTimeFormatter.ofPattern("MMM yyyy", Locale.US)
@@ -121,6 +147,32 @@ private fun StatCell(value: String, label: String, color: Color, modifier: Modif
         Text(value, color = color, fontFamily = LocalKitFonts.current.mono, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
             style = TextStyle(shadow = shadow))
         Text(label, color = color.copy(alpha = 0.75f), fontSize = 9.5.sp, letterSpacing = 1.2.sp, style = TextStyle(shadow = shadow))
+    }
+}
+
+/**
+ * Card textures, made once from random noise (no image files): paper grain for the ticket and
+ * blueprint, horizontal brushed-metal streaks for the plates. Fixed seeds, so they look the same every time.
+ */
+private object Grain {
+    val paper: Brush by lazy {
+        val n = 160; val r = java.util.Random(3)
+        val px = IntArray(n * n) { (r.nextInt(150) shl 24) or 0x736147 }
+        ShaderBrush(ImageShader(Bitmap.createBitmap(px, n, n, Bitmap.Config.ARGB_8888).asImageBitmap(), TileMode.Repeated, TileMode.Repeated))
+    }
+    val brushed: Brush by lazy {
+        val w = 900; val h = 240; val r = java.util.Random(7)
+        val rows = FloatArray(h) { r.nextFloat() }
+        val px = IntArray(w * h)
+        for (y in 0 until h) {
+            var v = rows[y]
+            for (x in 0 until w) {
+                v = (v + (r.nextFloat() - 0.5f) * 0.04f).coerceIn(0f, 1f)  // drifts slowly along the row
+                val a = (v * 0.55f + r.nextFloat() * 0.08f).coerceIn(0f, 1f)
+                px[y * w + x] = ((a * 255).toInt() shl 24) or 0xFFFFFF
+            }
+        }
+        ShaderBrush(ImageShader(Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888).asImageBitmap(), TileMode.Repeated, TileMode.Repeated))
     }
 }
 
@@ -154,7 +206,9 @@ private fun TicketCard(m: Milestone.ParkDone) {
     val d = LocalDensity.current
     val stub = 70.dp
     val shape = remember(d) { with(d) { TicketShape(14.dp.toPx(), 11.dp.toPx(), stub.toPx()) } }
-    Column(Modifier.fillMaxWidth().clip(shape).background(Ticket.paper).semantics { contentDescription = "Park complete" }) {
+    Column(Modifier.fillMaxWidth().clip(shape).background(Ticket.paper)
+        .drawWithContent { drawContent(); drawRect(Grain.paper, alpha = 0.45f, blendMode = BlendMode.Multiply) }
+        .semantics { contentDescription = "Park complete" }) {
         Row(Modifier.fillMaxWidth().background(Ticket.band).padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("PARK COMPLETE", color = Ticket.bandInk, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp, modifier = Modifier.weight(1f))
             Text("No. %04d".format(m.creditNo), color = Ticket.bandInk, fontFamily = LocalKitFonts.current.mono, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
@@ -198,6 +252,7 @@ private fun PlateCard(m: Milestone.MakeDone) {
         Modifier.fillMaxWidth().shadow(8.dp, shape).clip(shape)
             .drawBehind {
                 drawRect(Brush.linearGradient(stops, Offset.Zero, Offset(size.width * 0.75f, size.height * 1.4f)))
+                drawRect(Grain.brushed, alpha = 0.9f, blendMode = BlendMode.Overlay)
                 val inset = 4.dp.toPx()
                 drawRoundRect(hi, Offset(inset, inset), Size(size.width - 2 * inset, size.height - 2 * inset), CornerRadius(5.dp.toPx()), style = Stroke(1.5.dp.toPx()))
                 drawRect(Color(0x40000000), style = Stroke(1.5.dp.toPx()))
@@ -251,6 +306,7 @@ private fun BlueprintCard(m: Milestone.ModelDone) {
                 val step = 16.dp.toPx()
                 var x = 0f; while (x < size.width) { drawLine(Blueprint.grid, Offset(x, 0f), Offset(x, size.height), 1f); x += step }
                 var y = 0f; while (y < size.height) { drawLine(Blueprint.grid, Offset(0f, y), Offset(size.width, y), 1f); y += step }
+                drawRect(Grain.paper, alpha = 0.3f, blendMode = BlendMode.Multiply)
             }
             .padding(12.dp)
             .semantics { contentDescription = "Model complete" },

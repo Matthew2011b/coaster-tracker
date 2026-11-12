@@ -228,22 +228,36 @@ class ScreenshotTest {
         dialog("34_card_park_dark")
     }
 
-    /** Share saves the card through the FileProvider and opens the share sheet with the image and text. */
+    /** Share sends one line plus a link; Share image saves the card (with the Lift Hill strip) through the FileProvider. */
     @Test fun shareOpensTheShareSheet() {
         val ctx = ApplicationProvider.getApplicationContext<android.app.Application>()
         val theme = ThemeStore(ctx, AppTokens.all, "theme_share")
         val m = Milestone.ModelDone("Bolliger & Mabillard", "Wing Coaster", false, 3, LocalDate.of(2026, 11, 9), 42)
         rule.setContent { KitTheme(theme, AppFonts) { CelebrationDialog(m) {} } }
         dialog("35_share_card")  // draws the card, which records it for sharing
+        val shadow = org.robolectric.Shadows.shadowOf(ctx)
+
         rule.onNodeWithText("SHARE").performClick()
+        var send = shadow.nextStartedActivity.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+        val text = send.getStringExtra(android.content.Intent.EXTRA_TEXT)!!
+        assertTrue(text, text.startsWith("100% Complete https://") && "/m/bolliger-and-mabillard--wing-coaster?" in text && "no=42" in text && "sm=B%26M" in text)
+        assertTrue(send.type == "text/plain")
+
+        rule.onNodeWithText("Share image").performClick()
         rule.waitForIdle(); Thread.sleep(300); rule.waitForIdle()
-        val chooser = org.robolectric.Shadows.shadowOf(ctx).nextStartedActivity
-        assertTrue(chooser != null && chooser.action == android.content.Intent.ACTION_CHOOSER)
-        val send = chooser.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
-        val uri = send.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)!!
-        assertTrue(uri.authority == "com.m2011b.coastertracker.files")
-        assertTrue(send.getStringExtra(android.content.Intent.EXTRA_TEXT)!!.contains("Wing Coaster in the US"))
-        assertTrue(java.io.File(ctx.cacheDir, "shares/lift-hill.png").length() > 1000)
+        send = shadow.nextStartedActivity.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+        assertTrue(send.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)!!.authority == "com.m2011b.coastertracker.files")
+        assertTrue(send.getStringExtra(android.content.Intent.EXTRA_TEXT)!!.startsWith("B&M Wing Coaster (US): 100% Complete https://"))
+        val f = java.io.File(ctx.cacheDir, "shares/lift-hill.png")
+        assertTrue(f.length() > 1000)
+        java.io.File("$out/41_shared_image.png").writeBytes(f.readBytes())
+    }
+
+    /** The app names images the same way the share site does (web/src/card.js slug()). */
+    @Test fun slugsMatchTheSite() {
+        assertTrue(ShareLinks.slug("Bolliger & Mabillard") == "bolliger-and-mabillard")
+        assertTrue(ShareLinks.slug("Liseberg Ånäs") == "liseberg-anas")
+        assertTrue(ShareLinks.slug("SLC 689m (Standard)") == "slc-689m-standard")
     }
 
     @Test fun statsSearch() {
