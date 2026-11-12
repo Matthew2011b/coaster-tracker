@@ -81,6 +81,7 @@ ${PLAY ? `<a class="btn" href="${PLAY}">Get it on Google Play</a>` : `<span clas
 </main>
 ${c ? `<script type="module">
 import * as C from "/card.js";
+C.setFramed(false);
 const svg = C[${JSON.stringify(c.kind)}](${JSON.stringify(c.data).replace(/</g, "\\u003c")});
 document.fonts.ready.then(() => { document.getElementById("card").innerHTML = svg.replace("<svg ", '<svg role="img" aria-label="Your card" '); });
 </script>` : ""}

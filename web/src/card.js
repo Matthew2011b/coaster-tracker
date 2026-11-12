@@ -52,17 +52,23 @@ function mark({ left, right, y, size, color }) {
     `<text x="${x0 + is + gap}" y="${y}" font-family="${SANS}" font-size="${size}" font-weight="600" fill="${color}">Lift Hill</text>`;
 }
 
-const defs = `<defs>
-  <filter id="paper" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".65" numOctaves="4" seed="3" result="n"/>
-    <feColorMatrix in="n" values="0 0 0 0 .45  0 0 0 0 .38  0 0 0 0 .28  0 0 0 .55 0"/></filter>
-  <filter id="brush" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".002 .45" numOctaves="2" seed="7" result="n"/>
-    <feColorMatrix in="n" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .6 -.05"/></filter>
+// Textures are small pre-made images (web/build-images.mjs makes them) drawn as repeating patterns. Filters and
+// blend modes would be simpler, but phone browsers draw those faintly or not at all.
+let TEX = { paper: "/tex/paper.png", brushed: "/tex/brushed.png" };
+export function setTextures(t) { TEX = t; }
+const defs = () => `<defs>
+  <pattern id="paper" patternUnits="userSpaceOnUse" width="256" height="256"><image href="${TEX.paper}" width="256" height="256"/></pattern>
+  <pattern id="brush" patternUnits="userSpaceOnUse" width="1024" height="256"><image href="${TEX.brushed}" width="1024" height="256"/></pattern>
 </defs>`;
 
+/** [framed]: the thin black edge used in link previews. Without it (on the web page) the card shows edge to edge. */
+let FRAMED = true;
+export function setFramed(f) { FRAMED = f; }
 function frame(inner, clipR) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${defs}
+  const vb = FRAMED ? `0 0 ${W} ${H}` : `${E} ${E} ${W - 2 * E} ${H - 2 * E}`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${FRAMED ? W : W - 2 * E}" height="${FRAMED ? H : H - 2 * E}" viewBox="${vb}">${defs()}
   <clipPath id="card"><rect x="${E}" y="${E}" width="${W - 2 * E}" height="${H - 2 * E}" rx="${clipR}"/></clipPath>
-  <rect width="${W}" height="${H}" fill="#141617"/><g clip-path="url(#card)">${inner}</g></svg>`;
+  ${FRAMED ? `<rect width="${W}" height="${H}" fill="#141617"/>` : ""}<g clip-path="url(#card)">${inner}</g></svg>`;
 }
 
 const stat = (x, y, v, label, ink, sub, size = 60, shadow = "") =>
@@ -97,7 +103,7 @@ export function park({ name, coasters, models, year, no, generic = false, sub = 
     ${stat(div + stub / 2, sy[0] + 20, coasters, "COASTERS", "#25282A", "#6E7174")}
     ${stat(div + stub / 2, sy[1] + 20, models, "MODELS", "#25282A", "#6E7174")}
     ${stat(div + stub / 2, sy[2] + 20, year, "FINISHED", "#25282A", "#6E7174")}`}
-    <rect x="0" y="0" width="${W}" height="${H}" filter="url(#paper)" opacity=".45" style="mix-blend-mode:multiply"/>`;
+    <rect x="0" y="0" width="${W}" height="${H}" fill="url(#paper)" opacity=".5"/>`;
   const notch = (y) => `<circle cx="${div}" cy="${y}" r="22" fill="#141617"/>`;
   return frame(inner, 28).replace("</svg>", `${notch(E)}${notch(H - E)}</svg>`);
 }
@@ -128,7 +134,7 @@ export function maker({ make, world, coasters, models, places, no, date, generic
   const inner = `<defs><linearGradient id="g" x1="0" y1="0" x2=".75" y2="1.4">${stops.map((c, i) => `<stop offset="${[0, .45, .7, 1][i]}" stop-color="${c}"/>`).join("")}</linearGradient>
       <radialGradient id="rv" cx=".35" cy=".35" r=".9"><stop offset="0" stop-color="${hi}"/><stop offset="1" stop-color="${ink}"/></radialGradient></defs>
     <rect x="0" y="0" width="${W}" height="${H}" fill="url(#g)"/>
-    <rect x="0" y="0" width="${W}" height="${H}" filter="url(#brush)" opacity=".9" style="mix-blend-mode:overlay"/>
+    <rect x="0" y="0" width="${W}" height="${H}" fill="url(#brush)" opacity=".7"/>
     <rect x="${E + 5}" y="${E + 5}" width="${W - 2 * E - 10}" height="${H - 2 * E - 10}" rx="12" fill="none" stroke="${hi}" stroke-width="10"/>
     ${rivet(E + 36, E + 36)}${rivet(R - 36, E + 36)}${rivet(E + 36, B - 36)}${rivet(R - 36, B - 36)}
     ${kicker}${nameT}${serial}${m}
@@ -161,7 +167,7 @@ export function model({ make, model: md, world, count, no, date, generic = false
       <text x="${L + i * cw + 16}" y="${cellsTop + 66}" font-family="${MONO}" font-size="30" font-weight="600" fill="#fff">${esc(b)}</text>`).join("");
   const sx = R - 32 - sw, sy = T + 34;
   const inner = `<rect x="0" y="0" width="${W}" height="${H}" fill="${paper}"/>${grid}
-    <rect x="0" y="0" width="${W}" height="${H}" filter="url(#paper)" opacity=".3" style="mix-blend-mode:multiply"/>
+    <rect x="0" y="0" width="${W}" height="${H}" fill="url(#paper)" opacity=".35"/>
     <rect x="${L}" y="${T}" width="${iw}" height="${B - T}" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="3"/>
     ${textLines(nm, L + 32, titleY, { size: nm.size, fill: "#fff", lh: 1.06 })}
     ${make ? `<text x="${L + 32}" y="${byY}" font-family="${SANS}" font-size="34" fill="#fff">By ${esc(make)}</text>` : ""}

@@ -15,9 +15,24 @@ async function save(svg, path) {
   await sharp(png).jpeg({ quality: 80, mozjpeg: true }).toFile(OUT + path);
 }
 
+// Texture tiles: paper grain (brown specks) and brushed metal (white streaks along each row). Fixed seeds.
+function rng(seed) { return () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296); }
+async function tile(w, h, fill) { const px = Buffer.alloc(w * h * 4); fill(px, w, h); return sharp(px, { raw: { width: w, height: h, channels: 4 } }).png().toBuffer(); }
+const r1 = rng(3), r2 = rng(7);
+const paper = await tile(256, 256, (px) => { for (let i = 0; i < px.length; i += 4) { px[i] = 0x73; px[i + 1] = 0x61; px[i + 2] = 0x47; px[i + 3] = Math.floor(r1() * 120); } });
+const brushed = await tile(1024, 256, (px, w, h) => {
+  for (let y = 0; y < h; y++) { let v = r2(); for (let x = 0; x < w; x++) {
+    v = Math.min(1, Math.max(0, v + (r2() - 0.5) * 0.04)); const i = (y * w + x) * 4;
+    px[i] = px[i + 1] = px[i + 2] = 255; px[i + 3] = Math.floor(Math.min(1, v * 0.5 + r2() * 0.08) * 255); } }
+});
+C.setTextures({ paper: "data:image/png;base64," + paper.toString("base64"), brushed: "data:image/png;base64," + brushed.toString("base64") });
+
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(new URL("public/", import.meta.url).pathname, { recursive: true });
 copyFileSync(new URL("src/card.js", import.meta.url), new URL("public/card.js", import.meta.url));  // the landing page draws your own card with it
+mkdirSync(new URL("public/tex/", import.meta.url).pathname, { recursive: true });
+writeFileSync(new URL("public/tex/paper.png", import.meta.url), paper);
+writeFileSync(new URL("public/tex/brushed.png", import.meta.url), brushed);
 for (const d of ["p", "m", "k"]) mkdirSync(OUT + d, { recursive: true });
 
 const parks = new Map(snap.parks.map((p) => [p.id, p]));
