@@ -64,11 +64,13 @@ const defs = () => `<defs>
 /** [framed]: the thin black edge used in link previews. Without it (on the web page) the card shows edge to edge. */
 let FRAMED = true;
 export function setFramed(f) { FRAMED = f; }
-function frame(inner, clipR) {
+/** [holes]: circles cut out of the card (the ticket's notches), so they show whatever is behind it. */
+function frame(inner, clipR, holes = []) {
+  const mask = holes.length ? `<mask id="holes"><rect width="${W}" height="${H}" fill="#fff"/>${holes.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#000"/>`).join("")}</mask>` : "";
   const vb = FRAMED ? `0 0 ${W} ${H}` : `${E} ${E} ${W - 2 * E} ${H - 2 * E}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${FRAMED ? W : W - 2 * E}" height="${FRAMED ? H : H - 2 * E}" viewBox="${vb}">${defs()}
   <clipPath id="card"><rect x="${E}" y="${E}" width="${W - 2 * E}" height="${H - 2 * E}" rx="${clipR}"/></clipPath>
-  ${FRAMED ? `<rect width="${W}" height="${H}" fill="#141617"/>` : ""}<g clip-path="url(#card)">${inner}</g></svg>`;
+  ${mask}${FRAMED ? `<rect width="${W}" height="${H}" fill="#141617"/>` : ""}<g clip-path="url(#card)"${mask ? ' mask="url(#holes)"' : ""}>${inner}</g></svg>`;
 }
 
 const stat = (x, y, v, label, ink, sub, size = 60, shadow = "") =>
@@ -84,28 +86,28 @@ const hundred = (x, cy, ink, sub, shadow = "") =>
 
 /** Park: ticket stub. */
 export function park({ name, coasters, models, year, no, generic = false, sub = true }) {
-  const R = W - E, band = 112, stub = 340, div = R - stub, top = E + band;
+  const R = W - E, B = H - E, band = 112, stub = 340, div = R - stub, top = E + band;
   const nm = fit(name, div - E - 100, 100, 54);
   const nameH = nm.size * 1.08 * nm.lines.length;
-  const cy = (top + H - E) / 2;
+  const cy = (top + B) / 2 - 18;                     // a little high, leaving room for the Lift Hill mark below
   const nameY = cy - (nameH + (sub ? 46 : 0)) / 2 + nm.size * 0.82;
   const subY = nameY + (nm.lines.length - 1) * nm.size * 1.08 + 54;
-  const sy = [cy - 150, cy - 10, cy + 130];
+  const sx = div + stub / 2, sc = (top + B) / 2, sy = [sc - 140, sc - 10, sc + 120];
+  // The perforation runs the full height, band included; everything right of it (number and stats) is the stub.
   const inner = `<rect x="0" y="0" width="${W}" height="${H}" fill="#fff"/>
     <rect x="0" y="0" width="${W}" height="${top}" fill="#F0A04B"/>
     <text x="${E + 48}" y="${E + 67}" font-family="${SANS}" font-size="32" font-weight="600" fill="#2A1A08" letter-spacing="5.8">PARK COMPLETE</text>
-    ${mark({ right: R - 48, y: E + 67, size: 28, color: "#2A1A08" })}
-    ${generic ? "" : `<text x="${R - 48 - width("Lift Hill", 28) - 11 - 42 - 28}" y="${E + 67}" font-family="${MONO}" font-size="32" font-weight="600" fill="#2A1A08" text-anchor="end">No. ${esc(String(no).padStart(4, "0"))}</text>`}
+    ${generic ? "" : `<text x="${sx}" y="${E + 67}" font-family="${MONO}" font-size="32" font-weight="600" fill="#2A1A08" text-anchor="middle">No. ${esc(String(no).padStart(4, "0"))}</text>`}
     ${textLines(nm, E + 56, nameY, { size: nm.size, fill: "#25282A" })}
     ${sub ? `<text x="${E + 56}" y="${subY + 10}" font-family="${SANS}" font-size="38" fill="#6E7174">Every coaster ridden</text>` : ""}
-    <line x1="${div}" y1="${top + 28}" x2="${div}" y2="${H - E - 28}" stroke="#C9C9CA" stroke-width="5" stroke-dasharray="14 9"/>
-    ${generic ? hundred(div + stub / 2, cy, "#25282A", "#6E7174") : `
-    ${stat(div + stub / 2, sy[0] + 20, coasters, "COASTERS", "#25282A", "#6E7174")}
-    ${stat(div + stub / 2, sy[1] + 20, models, "MODELS", "#25282A", "#6E7174")}
-    ${stat(div + stub / 2, sy[2] + 20, year, "FINISHED", "#25282A", "#6E7174")}`}
+    ${mark({ left: E + 56, y: B - 40, size: 26, color: "#6E7174" })}
+    <line x1="${div}" y1="${E + 30}" x2="${div}" y2="${B - 30}" stroke="#000" stroke-opacity=".22" stroke-width="5" stroke-dasharray="14 9"/>
+    ${generic ? hundred(sx, sc, "#25282A", "#6E7174") : `
+    ${stat(sx, sy[0] + 20, coasters, "COASTERS", "#25282A", "#6E7174")}
+    ${stat(sx, sy[1] + 20, models, "MODELS", "#25282A", "#6E7174")}
+    ${stat(sx, sy[2] + 20, year, "FINISHED", "#25282A", "#6E7174")}`}
     <rect x="0" y="0" width="${W}" height="${H}" fill="url(#paper)" opacity=".5"/>`;
-  const notch = (y) => `<circle cx="${div}" cy="${y}" r="22" fill="#141617"/>`;
-  return frame(inner, 28).replace("</svg>", `${notch(E)}${notch(H - E)}</svg>`);
+  return frame(inner, 28, [[div, E, 22], [div, B, 22]]);
 }
 
 /** Manufacturer: riveted builder's plate. */
