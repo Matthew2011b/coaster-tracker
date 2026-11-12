@@ -41,9 +41,11 @@ class ScreenshotTest {
         val theme = ThemeStore(ctx, AppTokens.all, "theme_$prefs")
         val repo = Repo(ctx, "shot_$tag.db", "prefs_$tag") { LocalDate.of(2026, 11, 9) }
         repo.importCsv(javaClass.classLoader!!.getResource("matthew-rides.csv").readText())
-        rule.setContent { KitTheme(theme, AppFonts) { App(theme, repo, FixedLocator(kingsIsland), screen, sub) } }
+        drive = DriveBackup(ctx, repo, theme, "drive_$tag")
+        rule.setContent { KitTheme(theme, AppFonts) { App(theme, repo, FixedLocator(kingsIsland), drive, screen, sub) } }
         return theme to repo
     }
+    private lateinit var drive: DriveBackup
     private fun go(tab: String) { rule.onNodeWithContentDescription(tab).performClick() }
 
     @Test fun walkthrough() {
@@ -128,7 +130,7 @@ class ScreenshotTest {
         val theme = ThemeStore(ctx, AppTokens.all, "theme_accent")
         val repo = Repo(ctx, "shot_accent.db", "prefs_accent") { LocalDate.of(2026, 11, 9) }
         repo.importCsv(javaClass.classLoader!!.getResource("matthew-rides.csv").readText())
-        rule.setContent { KitTheme(theme, AppFonts) { App(theme, repo, FixedLocator(kingsIsland), "stats", null) } }
+        rule.setContent { KitTheme(theme, AppFonts) { App(theme, repo, FixedLocator(kingsIsland), DriveBackup(ctx, repo, theme, "drive_accent"), "stats", null) } }
         for ((name, c) in opts) for (dark in listOf(false, true)) {
             rule.runOnUiThread {
                 theme.set(false, com.m2011b.kit.theme.Std.Accent, androidx.compose.ui.graphics.Color(c.first))
@@ -137,6 +139,23 @@ class ScreenshotTest {
             }
             shot("accent_${name}_${if (dark) "dark" else "light"}")
         }
+    }
+
+    @Test fun settingsPages() {
+        start("pages", "settings")
+        rule.onNodeWithText("Colors & theme").performClick(); shot("10b_colors_theme")
+        rule.onNodeWithContentDescription("Back").performClick()
+        rule.onNodeWithText("Backup & data").performClick(); shot("10c_backup_signed_out")
+        rule.runOnUiThread { drive.email = "you@gmail.com"; drive.backupAt = System.currentTimeMillis() + 1000 }
+        shot("10d_backup_signed_in")
+        rule.onNodeWithContentDescription("Back").performClick(); shot("10e_settings_signed_in")
+    }
+
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h640dp-xhdpi")
+    fun smallSettingsPages() {
+        start("smallpages", "settings", Sub.Backup)
+        rule.runOnUiThread { drive.email = "a.much.longer.name@gmail.com"; drive.backupAt = System.currentTimeMillis() + 1000 }
+        shot("26_small_backup")
     }
 
     @Test fun customColors() {

@@ -87,6 +87,15 @@ any of Matthew's repos rather than starting from a template.
   card in the browser with public/card.js. .github/workflows/share.yml redraws and deploys on changes to web/ or the
   snapshot (secrets CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID). Site: https://lift-hill.lifthill.workers.dev.
   ShareLinks.slug() must match slug() in web/src/card.js. Set PLAY in worker.js once the app is on the Play Store.
+- Settings: two rows open Colors & Theme (ColorsScreen: presets, Custom = ThemeEditorScreen, System/Light/Dark) and
+  Backup & Data (BackupScreen.kt); then the filter toggles and the Coasterpedia key panel ("Get a free key" link left, data date right).
+- Backup: data/Backup.kt is the JSON format (rides, overrides, custom coasters, wishes, prefs, theme code). Repo.restoreBackup
+  merges, never replaces: union of rides (earliest date wins), local edits win, custom coasters matched by name + park and
+  re-id'd, stars combined, settings and theme from the backup. Drive.kt (DriveBackup) = Identity AuthorizationClient with
+  drive.appdata scope + Drive REST v3 on one file (lift-hill-backup.json) in appDataFolder. Auto backup runs from
+  MainActivity.onStop when Repo.changedAt > backup_at. Google Cloud project lift-hill-app (mrbsoftware.dev account), Android
+  OAuth client registered with the release key's SHA-1; the app is in Testing, so only listed test users can sign in.
+  The Sign in with Google button uses Google's fixed brand colors (another token-rule exception).
 - Coaster data is Coasterpedia (CC BY-SA 4.0): keep the credit line on Settings.
 - Building here: Maven Central rate-limits shared IPs; a local Gradle init script points at Google's mirror.
 

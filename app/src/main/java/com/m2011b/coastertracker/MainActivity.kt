@@ -33,7 +33,16 @@ class MainActivity : ComponentActivity() {
         val theme = ThemeStore(applicationContext, AppTokens.all)
         val repo = Repo(applicationContext)
         val locator = AndroidLocator(applicationContext)
-        setContent { KitTheme(theme, AppFonts) { App(theme, repo, locator) } }
+        drive = DriveBackup(applicationContext, repo, theme)
+        setContent { KitTheme(theme, AppFonts) { App(theme, repo, locator, drive) } }
+    }
+
+    private lateinit var drive: DriveBackup
+
+    // Leaving the app is the natural moment to back up: changes are done and nobody is waiting on it.
+    override fun onStop() {
+        super.onStop()
+        if (::drive.isInitialized) drive.autoBackup()
     }
 }
 
@@ -56,6 +65,8 @@ sealed interface Sub {
     data class Make(val make: String) : Sub
     data class ParkDetail(val id: Long) : Sub
     data object Theme : Sub
+    data object Colors : Sub
+    data object Backup : Sub
 }
 
 /** One page in the back history: a tab, plus the screen open on top of it if any. */
@@ -67,7 +78,7 @@ internal data class Entry(val id: Int, val tab: String, val sub: Sub?) {
 private fun tabIndex(tab: String) = NAV.indexOfFirst { it.id == tab }
 
 @Composable
-internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: String = NAV.first().id, startSub: Sub? = null) {
+internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, drive: DriveBackup, startScreen: String = NAV.first().id, startSub: Sub? = null) {
     var history by remember {
         mutableStateOf(listOfNotNull(Entry(0, startScreen, null), startSub?.let { Entry(1, startScreen, it) }))
     }
@@ -104,6 +115,8 @@ internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: S
         is Sub.Make -> o.make
         is Sub.ParkDetail -> "Park"
         Sub.Theme -> "Custom Colors"
+        Sub.Colors -> "Colors & Theme"
+        Sub.Backup -> "Backup & Data"
         null -> null
     }
     CompositionLocalProvider(LocalHere provides here) {
@@ -147,12 +160,14 @@ internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: S
                             showMap = subMaps[e.id] == true, onPark = { open(Sub.ParkDetail(it)) })
                         is Sub.ParkDetail -> ParkDetailScreen(repo, o.id) { open(Sub.Model(it)) }
                         Sub.Theme -> ThemeEditorScreen(theme)
+                        Sub.Colors -> ColorsScreen(theme) { open(Sub.Theme) }
+                        Sub.Backup -> BackupScreen(repo, drive)
                         null -> when (e.tab) {
                             "log" -> LogScreen(repo, repo.quickLog)
                             "stats" -> StatsScreen(repo, null, onModel = { open(Sub.Model(it)) }, onMake = { open(Sub.Make(it)) }, onPark = { open(Sub.ParkDetail(it)) })
                             "parks" -> ParksScreen(repo, parksMap) { open(Sub.ParkDetail(it)) }
                             "nearest" -> NearestScreen(repo, refreshLocation) { open(Sub.Model(it)) }
-                            else -> SettingsScreen(repo, theme) { open(Sub.Theme) }
+                            else -> SettingsScreen(repo, theme, drive, onColors = { open(Sub.Colors) }, onBackup = { open(Sub.Backup) })
                         }
                     }
                 }

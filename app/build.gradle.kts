@@ -22,8 +22,8 @@ android {
         applicationId = "com.m2011b.coastertracker"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "0.18"
+        versionCode = 19
+        versionName = "0.19"
     }
 
     // Signing. The key is NEVER committed. It comes from (first match wins):

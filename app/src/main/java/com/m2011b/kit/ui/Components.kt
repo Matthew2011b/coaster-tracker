@@ -45,7 +45,7 @@ fun FieldBox(
     value: String,
     onValueChange: (String) -> Unit,
     status: FieldStatus,
-    hint: String,
+    hint: String?,
     modifier: Modifier = Modifier,
     placeholder: String = "",
     numeric: Boolean = false,
@@ -100,7 +100,7 @@ fun FieldBox(
                 }
             },
         )
-        Text(hint, color = hintColor, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
+        if (hint != null) Text(hint, color = hintColor, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
     }
 }
 
