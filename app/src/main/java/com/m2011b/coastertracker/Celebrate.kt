@@ -73,7 +73,7 @@ fun CelebrationDialog(m: Milestone, onClose: () -> Unit) {
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 PrimaryButton("SHARE", Modifier.weight(1f)) {
-                    scope.launch { share(ctx, layer.toImageBitmap(), p.bg.toArgb(), shareText(m)) }
+                    scope.launch { share(ctx, { layer.toImageBitmap() }, p.bg.toArgb(), shareText(m)) }
                 }
                 SecondaryButton("Close", Modifier.width(110.dp), onClick = onClose)
             }
@@ -88,8 +88,17 @@ fun shareText(m: Milestone): String = when (m) {
 } + " Tracked with Lift Hill."
 
 /** Saves the card on a margin of page color (so notches and corners don't show as black) and opens the share sheet. */
-private fun share(ctx: Context, img: ImageBitmap, bg: Int, text: String) {
-    val card = img.asAndroidBitmap()
+private suspend fun share(ctx: Context, img: suspend () -> ImageBitmap, bg: Int, text: String) = try {
+    shareImage(ctx, img(), bg, text)
+} catch (e: Exception) {
+    android.util.Log.e("LiftHill", "share failed", e)
+    android.widget.Toast.makeText(ctx, "Couldn't share the card", android.widget.Toast.LENGTH_SHORT).show()
+}
+
+internal fun shareImage(ctx: Context, img: ImageBitmap, bg: Int, text: String) {
+    // The captured card is a hardware bitmap on real phones, which a software canvas can't draw: copy it first.
+    val raw = img.asAndroidBitmap()
+    val card = if (android.os.Build.VERSION.SDK_INT >= 26 && raw.config == Bitmap.Config.HARDWARE) raw.copy(Bitmap.Config.ARGB_8888, false) else raw
     val pad = card.width / 14
     val out = Bitmap.createBitmap(card.width + 2 * pad, card.height + 2 * pad, Bitmap.Config.ARGB_8888)
     android.graphics.Canvas(out).apply { drawColor(bg); drawBitmap(card, pad.toFloat(), pad.toFloat(), null) }
@@ -99,6 +108,7 @@ private fun share(ctx: Context, img: ImageBitmap, bg: Int, text: String) {
     val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", f)
     val send = Intent(Intent.ACTION_SEND).setType("image/png").putExtra(Intent.EXTRA_STREAM, uri).putExtra(Intent.EXTRA_TEXT, text)
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    send.clipData = android.content.ClipData.newRawUri(null, uri)  // lets the share sheet preview the image
     ctx.startActivity(Intent.createChooser(send, "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 

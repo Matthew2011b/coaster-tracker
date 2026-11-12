@@ -227,4 +227,22 @@ class ScreenshotTest {
         rule.runOnUiThread { theme.changeMode(ThemeMode.Dark); shown = cards.first().second }
         dialog("34_card_park_dark")
     }
+
+    /** Share saves the card through the FileProvider and opens the share sheet with the image and text. */
+    @Test fun shareOpensTheShareSheet() {
+        val ctx = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val theme = ThemeStore(ctx, AppTokens.all, "theme_share")
+        val m = Milestone.ModelDone("Bolliger & Mabillard", "Wing Coaster", false, 3, LocalDate.of(2026, 11, 9), 42)
+        rule.setContent { KitTheme(theme, AppFonts) { CelebrationDialog(m) {} } }
+        dialog("35_share_card")  // draws the card, which records it for sharing
+        rule.onNodeWithText("SHARE").performClick()
+        rule.waitForIdle(); Thread.sleep(300); rule.waitForIdle()
+        val chooser = org.robolectric.Shadows.shadowOf(ctx).nextStartedActivity
+        assertTrue(chooser != null && chooser.action == android.content.Intent.ACTION_CHOOSER)
+        val send = chooser.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+        val uri = send.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)!!
+        assertTrue(uri.authority == "com.m2011b.coastertracker.files")
+        assertTrue(send.getStringExtra(android.content.Intent.EXTRA_TEXT)!!.contains("Wing Coaster in the US"))
+        assertTrue(java.io.File(ctx.cacheDir, "shares/lift-hill.png").length() > 1000)
+    }
 }
