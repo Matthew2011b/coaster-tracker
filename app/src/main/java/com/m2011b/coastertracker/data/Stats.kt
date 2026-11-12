@@ -127,6 +127,36 @@ class Stats(
                 ParkStat(park, 0, cs.count { !ridden(it) }, cs.count { ridden(it) })
             }
 
+    // ---------- Search ----------
+
+    data class Found(val coasters: List<Coaster>, val parks: List<ParkStat>, val models: List<ModelStat>, val makes: List<MakeStat>) {
+        val empty get() = coasters.isEmpty() && parks.isEmpty() && models.isEmpty() && makes.isEmpty()
+    }
+
+    /**
+     * Everything with a word in its name starting with [q] (ignoring case and punctuation): names starting with it
+     * first, then ridden coasters and nearer places. Up to [max] per group.
+     */
+    fun search(q: String, here: Pair<Double, Double>?, max: Int = 25): Found {
+        val n = Rules.norm(q)
+        if (n.isEmpty()) return Found(emptyList(), emptyList(), emptyList(), emptyList())
+        // A match starts a word ("ban" finds Banshee and Wonderla Bangalore, not Lisebergbanan), or the whole name.
+        fun hit(name: String?) = name != null &&
+            (Rules.norm(name).startsWith(n) || name.split(Regex("[^\\p{L}\\p{N}]+")).any { Rules.norm(it).startsWith(n) })
+        fun starts(name: String) = if (Rules.norm(name).startsWith(n)) 0 else 1
+        val cs = coasters.filter { hit(it.name) && loggable(it) }
+            .sortedWith(compareBy<Coaster>({ starts(it.name) }, { !ridden(it) }, { distance(it, here) ?: Double.MAX_VALUE }, { it.name.lowercase() }))
+            .take(max)
+        val ps = parkStats(usOnly = filters.usOnly, includeDone = true).filter { hit(it.park.name) }
+            .sortedWith(compareBy<ParkStat>({ starts(it.park.name) }, { p ->
+                if (here == null || p.park.lat == null || p.park.lon == null) Double.MAX_VALUE else Rules.miles(here.first, here.second, p.park.lat, p.park.lon)
+            })).take(max)
+        val ms = models.filter { hit(it.model) || hit("${it.make} ${it.model}") }
+            .sortedWith(compareBy<ModelStat>({ starts(it.model) }, { -it.total })).take(max)
+        val mk = makes.filter { hit(it.make) }.sortedWith(compareBy<MakeStat>({ starts(it.make) }, { -it.coasters })).take(max)
+        return Found(cs, ps, ms, mk)
+    }
+
     // ---------- Completion ----------
 
     /** Coasters you could still ride or already have: operating ones plus anything logged. */
@@ -149,7 +179,8 @@ class Stats(
 }
 
 /** Starred coasters (by id) and models (by make|model key). */
-data class Wishes(val coasters: Set<Long> = emptySet(), val models: Set<String> = emptySet()) {
+/** [auto] = coasters starred only because their model was starred (unstarring the model unstars these). */
+data class Wishes(val coasters: Set<Long> = emptySet(), val models: Set<String> = emptySet(), val auto: Set<Long> = emptySet()) {
     fun coaster(id: Long) = id in coasters
     fun model(key: String) = key in models
 }

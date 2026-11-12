@@ -132,12 +132,13 @@ private fun QuickLog(repo: Repo, park: Park?, atPark: List<Coaster>, here: LatLo
             val gap = 6.dp
             val cells = tiles.size + 1  // plus the Add tile
             val rows = (cells + 1) / 2
-            val tileH = ((maxHeight - gap * (rows - 1)) / rows).coerceIn(60.dp, 68.dp)
+            // Small phones: tiles shrink (down to 50 dp, with smaller text) before the grid has to scroll.
+            val tileH = ((maxHeight - gap * (rows - 1)) / rows).coerceIn(50.dp, 68.dp)
             LazyVerticalGrid(GridCells.Fixed(2), horizontalArrangement = Arrangement.spacedBy(gap), verticalArrangement = Arrangement.spacedBy(gap),
                 modifier = Modifier.fillMaxSize()) {
                 items(tiles, key = { it.id }) { c ->
                     val ridden = stats.ridden(c)
-                    QuickTile(c, ridden, stats.isNewModel(c), tileH,
+                    QuickTile(c, ridden, stats.isNewModel(c), repo.wishes.coaster(c.id), tileH,
                         onClick = { if (!ridden) { repo.log(c.id); park?.let { repo.setLastPark(it.id) }; undo = c } },
                         onLongClick = { onEdit(c) })
                 }
@@ -165,21 +166,25 @@ private val TileShape = RoundedCornerShape(9.dp)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun QuickTile(c: Coaster, ridden: Boolean, newModel: Boolean, height: Dp, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun QuickTile(c: Coaster, ridden: Boolean, newModel: Boolean, wished: Boolean, height: Dp, onClick: () -> Unit, onLongClick: () -> Unit) {
     val p = LocalPalette.current
     val bg = when { ridden -> p[AppTokens.OkSoft]; newModel -> p[AppTokens.NewBg]; else -> p.surface }
     val edge = when { ridden -> p.ok; newModel -> p[AppTokens.NewInk]; else -> p.line }
+    val compact = height < 58.dp
+    val small = if (compact) 10.5.sp else 11.5.sp
+    val smallLine = if (compact) 12.5.sp else 14.sp
     Box(
         Modifier.height(height).clip(TileShape).background(bg).border(1.dp, edge, TileShape)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 9.dp, vertical = 5.dp),
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 9.dp, vertical = if (compact) 3.dp else 5.dp),
     ) {
         Column(Modifier.align(Alignment.CenterStart).fillMaxWidth()) {
-            Text(c.name, color = p.ink, fontSize = 13.5.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
-                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = if (newModel) 30.dp else 20.dp))
-            Text(c.make ?: "Unknown maker", color = p.ink.copy(alpha = 0.8f), fontSize = 11.5.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(c.model ?: "Custom", color = p.muted, fontSize = 11.5.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(c.name, color = p.ink, fontSize = if (compact) 12.5.sp else 13.5.sp, lineHeight = if (compact) 14.5.sp else 16.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = (if (newModel) 30 else 20).dp + (if (wished) 16 else 0).dp))
+            Text(c.make ?: "Unknown maker", color = p.ink.copy(alpha = 0.8f), fontSize = small, lineHeight = smallLine, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(c.model ?: "Custom", color = p.muted, fontSize = small, lineHeight = smallLine, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Box(Modifier.align(Alignment.TopEnd)) {
+        Row(Modifier.align(Alignment.TopEnd), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (wished) Icon(starFilled, contentDescription = "On your wishlist", tint = p[AppTokens.Wish], modifier = Modifier.size(13.dp))
             when {
                 ridden -> Icon(Icons.Filled.Check, contentDescription = "Ridden", tint = p.ok, modifier = Modifier.size(16.dp))
                 newModel -> Text("NEW", color = p[AppTokens.NewInk], fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp)
@@ -250,6 +255,11 @@ fun EditCoasterDialog(repo: Repo, c: Coaster, onDone: () -> Unit) {
             "Cancel" to onDone,
         ),
     ) {
+        val wished = repo.wishes.coaster(c.id)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+            WishStar(wished, c.name) { repo.toggleWishCoaster(c.id) }
+            Text(if (wished) "On your wishlist" else "Add to wishlist", color = LocalPalette.current.ink, fontSize = 14.sp)
+        }
         FieldBox("Manufacturer", make, { make = it }, if (make.isBlank()) FieldStatus.Empty else FieldStatus.Typing,
             "Leave blank if unknown", capitalize = true)
         Spacer(Modifier.height(4.dp))

@@ -245,4 +245,29 @@ class ScreenshotTest {
         assertTrue(send.getStringExtra(android.content.Intent.EXTRA_TEXT)!!.contains("Wing Coaster in the US"))
         assertTrue(java.io.File(ctx.cacheDir, "shares/lift-hill.png").length() > 1000)
     }
+
+    @Test fun statsSearch() {
+        start("search", "stats")
+        rule.onNodeWithContentDescription("Search").performTextInput("ban")
+        shot("36_stats_search")
+        rule.onNodeWithText("Banshee").performClick()
+        rule.onNodeWithText("Coasters", ignoreCase = true).assertExists()  // park page for Kings Island
+        shot("37_search_to_park")
+    }
+
+    @Test fun nearestStarsAndEditDialogStar() {
+        val (_, repo) = start("neareststar", "nearest")
+        val first = repo.stats.nearestNewModels(kingsIsland).take(3).last().stat.key
+        rule.runOnUiThread { repo.toggleWishModel(first) }
+        rule.waitForIdle()
+        rule.onAllNodesWithContentDescription("Starred").onFirst().assertExists()
+        shot("38_nearest_starred")
+        go("Log"); rule.onNodeWithContentDescription("Quick list").performClick()
+        rule.onNodeWithText("Banshee").performTouchInput { longClick() }
+        rule.onNodeWithText("Add to wishlist").assertExists()
+        rule.onNodeWithContentDescription("Add Banshee to wishlist").performClick()
+        dialog("39_edit_with_star")
+        rule.onNodeWithText("Cancel").performClick()
+        shot("40_quick_log_starred")
+    }
 }

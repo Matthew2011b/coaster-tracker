@@ -276,4 +276,33 @@ class DataTest {
         again.toggleWishCoaster(7907)
         assertFalse(repo("wish").wishes.coaster(7907))
     }
+
+    /** Starring a model stars its installations; unstarring it leaves the ones starred on their own. */
+    @Test fun modelStarCascadesButKeepsYourOwnStars() {
+        val r = repo("cascade")
+        val boomerangs = r.stats.coasters.filter { it.modelKey == "Vekoma|Boomerang" }.map { it.id }
+        val mine = boomerangs[0]; val other = boomerangs[1]
+        r.toggleWishCoaster(mine)
+        r.toggleWishModel("Vekoma|Boomerang")
+        assertTrue(boomerangs.all { r.wishes.coaster(it) })
+        r.toggleWishCoaster(other)  // unstar one by hand: it's now the user's call
+        r.toggleWishCoaster(other)  // and star it again by hand
+        r.toggleWishModel("Vekoma|Boomerang")
+        assertTrue(r.wishes.coaster(mine))       // starred before the model
+        assertTrue(r.wishes.coaster(other))      // starred by hand after
+        assertEquals(2, boomerangs.count { r.wishes.coaster(it) })
+        assertFalse(repo("cascade").wishes.model("Vekoma|Boomerang"))
+        assertEquals(2, boomerangs.count { repo("cascade").wishes.coaster(it) })  // survives a restart
+    }
+
+    @Test fun searchFindsEveryKind() {
+        val s = repo("search").stats
+        val f = s.search("ban", 39.3447 to -84.2686)
+        assertEquals("Banshee", f.coasters.first().name)
+        assertTrue(f.parks.any { it.park.name.contains("Bangalore") })
+        assertTrue(f.coasters.none { it.name.contains("Lisebergbanan") })
+        assertTrue(s.search("vekoma", null).makes.any { it.make == "Vekoma" })
+        assertTrue(s.search("boomerang", null).models.any { it.key == "Vekoma|Boomerang" })
+        assertTrue(s.search("  ", null).empty)
+    }
 }

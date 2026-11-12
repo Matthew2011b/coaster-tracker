@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,11 +37,19 @@ fun StatsScreen(repo: Repo, make: String?, onModel: (String) -> Unit, onMake: (S
     var view by rememberSaveable { mutableIntStateOf(0) }
     var sort by rememberSaveable { mutableStateOf(SortBy.MostComplete) }
     var sortOpen by remember { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
     val showModels = make != null || view == 0
     val models = remember(s, sort, make) { s.sortedModels(sort).filter { make == null || it.make == make } }
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (make == null) Segmented(listOf("Models", "Manufacturers"), view) { view = it }
+        if (make == null) {
+            SearchField(query) { query = it }
+            if (query.isNotBlank()) {
+                SearchResults(repo, query, onModel, onMake, onPark, Modifier.weight(1f))
+                return@Column
+            }
+            Segmented(listOf("Models", "Manufacturers"), view) { view = it }
+        }
         if (make != null && showMap) {
             InstallMap(repo, onPark, Modifier.weight(1f)) { it.make == make }
             return@Column
@@ -89,6 +98,86 @@ fun StatsScreen(repo: Repo, make: String?, onModel: (String) -> Unit, onMake: (S
                     }
                     RowDivider()
                 }
+            }
+        }
+    }
+}
+
+/** Search box at the top of Stats: finds coasters, parks, models and manufacturers. */
+@Composable
+fun SearchField(value: String, onChange: (String) -> Unit) {
+    val p = LocalPalette.current
+    var focused by remember { mutableStateOf(false) }
+    androidx.compose.foundation.text.BasicTextField(
+        value, onChange, singleLine = true,
+        textStyle = androidx.compose.ui.text.TextStyle(color = p.ink, fontSize = 15.sp, fontFamily = com.m2011b.kit.theme.LocalKitFonts.current.sans),
+        cursorBrush = androidx.compose.ui.graphics.SolidColor(p.accent),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+        modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.semantics { contentDescription = "Search" },
+        decorationBox = { inner ->
+            Row(
+                Modifier.fillMaxWidth().height(44.dp).clip(BoxShape).background(p.surface)
+                    .border(if (focused) 2.dp else 1.dp, if (focused) p.accent else p.line, BoxShape).padding(start = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(outlineIcon("Search", "M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14 M20 20l-4-4"), null, tint = p.muted, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.weight(1f)) {
+                    if (value.isEmpty()) Text("Search coasters, parks, models", color = p.muted, fontSize = 15.sp)
+                    inner()
+                }
+                if (value.isNotEmpty()) Text("✕", color = p.muted, fontSize = 15.sp,
+                    modifier = Modifier.clickable { onChange("") }.padding(horizontal = 14.dp, vertical = 10.dp).semantics { contentDescription = "Clear search" })
+            }
+        },
+    )
+}
+
+@Composable
+private fun SearchResults(repo: Repo, q: String, onModel: (String) -> Unit, onMake: (String) -> Unit, onPark: (Long) -> Unit, modifier: Modifier) {
+    val p = LocalPalette.current
+    val s = repo.stats
+    val here = LocalHere.current
+    val f = remember(s, q, here) { s.search(q, here) }
+    if (f.empty) {
+        Text("Nothing matches \"$q\"", color = p.muted, fontSize = 14.sp, modifier = Modifier.padding(4.dp))
+        return
+    }
+    ListBox(modifier) {
+        fun head(t: String, n: Int) = item(key = "h$t") {
+            Box(Modifier.fillMaxWidth().background(p.bg).padding(top = 10.dp, bottom = 6.dp)) { SectionHead(t, "$n") }
+        }
+        if (f.coasters.isNotEmpty()) {
+            head("Coasters", f.coasters.size)
+            items(f.coasters, key = { "c${it.id}" }) { c ->
+                Row(Modifier.fillMaxWidth().clickable { c.parkId?.let(onPark) ?: c.modelKey?.let(onModel) }.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    TwoLine(c.name, listOfNotNull(c.parkName, modelLine(c)).joinToString(" · "), Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
+                    if (s.ridden(c)) RiddenMark() else Mono(miles(s.distance(c, here)).ifEmpty { c.country ?: "" })
+                }
+                RowDivider()
+            }
+        }
+        if (f.parks.isNotEmpty()) {
+            head("Parks", f.parks.size)
+            items(f.parks, key = { "p${it.park.id}" }) { r ->
+                ValueRow(r.park.name, r.park.place, if (r.unridden == 0) "All ridden" else "${r.newModels} new", onClick = { onPark(r.park.id) })
+                RowDivider()
+            }
+        }
+        if (f.models.isNotEmpty()) {
+            head("Models", f.models.size)
+            items(f.models, key = { "m${it.key}" }) { m ->
+                ValueRow(m.model, m.make, "${m.ridden} / ${m.total}", onClick = { onModel(m.key) })
+                RowDivider()
+            }
+        }
+        if (f.makes.isNotEmpty()) {
+            head("Manufacturers", f.makes.size)
+            items(f.makes, key = { "k${it.make}" }) { mk ->
+                ValueRow(mk.make, "${mk.coastersRidden} of ${mk.coasters} coasters ridden", "${mk.modelsRidden} / ${mk.models}", onClick = { onMake(mk.make) })
+                RowDivider()
             }
         }
     }
@@ -246,10 +335,20 @@ fun NearestScreen(repo: Repo, refreshLocation: () -> Unit, onModel: (String) -> 
             TextButton(onClick = refreshLocation) { Text("Refresh", color = p.accent, fontWeight = FontWeight.SemiBold) }
         }
         SectionHead("Closest place to ride each model you haven't")
-        ListBox(Modifier.weight(1f)) {
+        val list = androidx.compose.foundation.lazy.rememberLazyListState()
+        LaunchedEffect(wishes.models) { list.scrollToItem(0) }  // starred models jump to the top: show them
+        ListBox(Modifier.weight(1f), list) {
             items(rows, key = { it.stat.key }) { r ->
-                ValueRow((if (wishes.model(r.stat.key)) "★ " else "") + "${shortMake(r.stat.make)} ${r.stat.model}", "${r.coaster.name} · ${r.park.name}",
-                    miles(r.miles), onClick = { onModel(r.stat.key) })
+                Row(Modifier.fillMaxWidth().clickable { onModel(r.stat.key) }.padding(horizontal = 14.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    if (wishes.model(r.stat.key)) {
+                        Icon(starFilled, contentDescription = "Starred", tint = p[AppTokens.Wish], modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    TwoLine("${shortMake(r.stat.make)} ${r.stat.model}", "${r.coaster.name} · ${r.park.name}", Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
+                    Mono(miles(r.miles), size = 14, bold = true)
+                }
                 RowDivider()
             }
         }

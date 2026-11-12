@@ -149,7 +149,7 @@ internal fun App(theme: ThemeStore, repo: Repo, locator: Locator, startScreen: S
                         Sub.Theme -> ThemeEditorScreen(theme)
                         null -> when (e.tab) {
                             "log" -> LogScreen(repo, repo.quickLog)
-                            "stats" -> StatsScreen(repo, null, onModel = { open(Sub.Model(it)) }, onMake = { open(Sub.Make(it)) })
+                            "stats" -> StatsScreen(repo, null, onModel = { open(Sub.Model(it)) }, onMake = { open(Sub.Make(it)) }, onPark = { open(Sub.ParkDetail(it)) })
                             "parks" -> ParksScreen(repo, parksMap) { open(Sub.ParkDetail(it)) }
                             "nearest" -> NearestScreen(repo, refreshLocation) { open(Sub.Model(it)) }
                             else -> SettingsScreen(repo, theme) { open(Sub.Theme) }

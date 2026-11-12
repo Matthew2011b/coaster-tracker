@@ -35,15 +35,33 @@ class Repo(context: Context, dbName: String = "coasters.db", prefsName: String =
         private set
     private fun readWishes(): Wishes {
         val raw = prefs.getStringSet("wish", emptySet()).orEmpty()
-        return Wishes(raw.filter { it.startsWith("c:") }.mapNotNull { it.drop(2).toLongOrNull() }.toSet(),
-            raw.filter { it.startsWith("m:") }.map { it.drop(2) }.toSet())
+        fun ids(tag: String) = raw.filter { it.startsWith(tag) }.mapNotNull { it.drop(2).toLongOrNull() }.toSet()
+        return Wishes(ids("c:"), raw.filter { it.startsWith("m:") }.map { it.drop(2) }.toSet(), ids("a:"))
     }
     private fun saveWishes(w: Wishes) {
         wishes = w
-        prefs.edit().putStringSet("wish", w.coasters.map { "c:$it" }.toSet() + w.models.map { "m:$it" }).apply()
+        prefs.edit().putStringSet("wish", w.coasters.map { "c:$it" }.toSet() + w.models.map { "m:$it" } + w.auto.map { "a:$it" }).apply()
     }
-    fun toggleWishCoaster(id: Long) = saveWishes(wishes.copy(coasters = wishes.coasters.let { if (id in it) it - id else it + id }))
-    fun toggleWishModel(key: String) = saveWishes(wishes.copy(models = wishes.models.let { if (key in it) it - key else it + key }))
+
+    /** Star or unstar one coaster. Either way it is now the user's own choice, not one the model star made. */
+    fun toggleWishCoaster(id: Long) = wishes.let { w ->
+        saveWishes(if (id in w.coasters) w.copy(coasters = w.coasters - id, auto = w.auto - id) else w.copy(coasters = w.coasters + id, auto = w.auto - id))
+    }
+
+    /**
+     * Star a model: also stars every installation, remembering which ones it starred. Unstarring the model
+     * unstars only those, so coasters starred on their own before stay starred.
+     */
+    fun toggleWishModel(key: String) = wishes.let { w ->
+        val ids = coasters.filter { it.modelKey == key }.map { it.id }.toSet()
+        saveWishes(if (key in w.models) {
+            val mine = w.auto intersect ids
+            w.copy(models = w.models - key, coasters = w.coasters - mine, auto = w.auto - mine)
+        } else {
+            val added = ids - w.coasters
+            w.copy(models = w.models + key, coasters = w.coasters + added, auto = w.auto + added)
+        })
+    }
 
     /** Log a Ride shows the quick tile list instead of the picker. */
     var quickLog by mutableStateOf(prefs.getBoolean("quick_log", false))

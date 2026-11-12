@@ -36,9 +36,10 @@ import java.util.Locale
 
 /** Bordered box whose list scrolls inside it, so the screen itself never scrolls. */
 @Composable
-fun ListBox(modifier: Modifier = Modifier, content: LazyListScope.() -> Unit) {
+fun ListBox(modifier: Modifier = Modifier, state: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+            content: LazyListScope.() -> Unit) {
     val p = LocalPalette.current
-    LazyColumn(modifier.fillMaxWidth().clip(BoxShape).background(p.surface).border(1.dp, p.line, BoxShape), content = content)
+    LazyColumn(modifier.fillMaxWidth().clip(BoxShape).background(p.surface).border(1.dp, p.line, BoxShape), state = state, content = content)
 }
 
 @Composable
@@ -108,7 +109,7 @@ fun miles(d: Double?): String {
 
 private const val STAR = "M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z"
 private val starOff = outlineIcon("Star", STAR)
-private val starOn = androidx.compose.ui.graphics.vector.ImageVector.Builder("Starred", 24.dp, 24.dp, 24f, 24f).apply {
+val starFilled = androidx.compose.ui.graphics.vector.ImageVector.Builder("Starred", 24.dp, 24.dp, 24f, 24f).apply {
     addPath(androidx.compose.ui.graphics.vector.PathParser().parsePathString(STAR).toNodes(),
         fill = androidx.compose.ui.graphics.SolidColor(androidx.compose.ui.graphics.Color.Black),
         stroke = androidx.compose.ui.graphics.SolidColor(androidx.compose.ui.graphics.Color.Black), strokeLineWidth = 2f,
@@ -123,7 +124,7 @@ fun WishStar(on: Boolean, label: String, size: Int = 22, onToggle: () -> Unit) {
         Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable(onClick = onToggle)
             .semantics { contentDescription = if (on) "Remove $label from wishlist" else "Add $label to wishlist" },
         contentAlignment = Alignment.Center,
-    ) { Icon(if (on) starOn else starOff, contentDescription = null, tint = if (on) p[AppTokens.Wish] else p.muted, modifier = Modifier.size(size.dp)) }
+    ) { Icon(if (on) starFilled else starOff, contentDescription = null, tint = if (on) p[AppTokens.Wish] else p.muted, modifier = Modifier.size(size.dp)) }
 }
 
 /** Coaster row used on the log and park screens: tap selects, long-press edits, optional wishlist star. */
