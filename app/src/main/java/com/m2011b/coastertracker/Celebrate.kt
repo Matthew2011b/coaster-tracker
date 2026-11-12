@@ -61,11 +61,9 @@ import java.util.Locale
 fun CelebrationDialog(m: Milestone, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val p = LocalPalette.current
-    val scope = rememberCoroutineScope()
-    val layer = rememberGraphicsLayer()
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(Modifier.padding(22.dp).widthIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.drawWithContent { layer.record { this@drawWithContent.drawContent() }; drawLayer(layer) }) {
+            Box {
                 when (m) {
                     is Milestone.ParkDone -> TicketCard(m)
                     is Milestone.MakeDone -> PlateCard(m)
@@ -73,11 +71,8 @@ fun CelebrationDialog(m: Milestone, onClose: () -> Unit) {
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                PrimaryButton("SHARE", Modifier.weight(1.1f)) { shareLink(ctx, ShareLinks.message(m)) }
-                SecondaryButton("Share image", Modifier.weight(1f)) {
-                    scope.launch { share(ctx, { layer.toImageBitmap() }, 0xFFDADAD7.toInt(), "${ShareLinks.title(m)} ${ShareLinks.link(m)}") }
-                }
-                SecondaryButton("Close", Modifier.width(76.dp), onClick = onClose)
+                PrimaryButton("Share", Modifier.weight(1f), compact = true) { shareLink(ctx, ShareLinks.message(m)) }
+                SecondaryButton("Close", Modifier.weight(1f), onClick = onClose)
             }
         }
     }
@@ -92,50 +87,6 @@ private fun shareLink(ctx: Context, text: String) {
         android.util.Log.e("LiftHill", "share failed", e)
         android.widget.Toast.makeText(ctx, "Couldn't share", android.widget.Toast.LENGTH_SHORT).show()
     }
-}
-
-/** Saves the card on a margin of page color (so notches and corners don't show as black) and opens the share sheet. */
-private suspend fun share(ctx: Context, img: suspend () -> ImageBitmap, bg: Int, text: String) = try {
-    shareImage(ctx, img(), bg, text)
-} catch (e: Exception) {
-    android.util.Log.e("LiftHill", "share failed", e)
-    android.widget.Toast.makeText(ctx, "Couldn't share the card", android.widget.Toast.LENGTH_SHORT).show()
-}
-
-internal fun shareImage(ctx: Context, img: ImageBitmap, bg: Int, text: String) {
-    // The captured card is a hardware bitmap on real phones, which a software canvas can't draw: copy it first.
-    val raw = img.asAndroidBitmap()
-    val card = if (android.os.Build.VERSION.SDK_INT >= 26 && raw.config == Bitmap.Config.HARDWARE) raw.copy(Bitmap.Config.ARGB_8888, false) else raw
-    val pad = card.width / 14
-    val foot = card.width / 6  // the Lift Hill strip under the card, so the name travels with the image
-    val out = Bitmap.createBitmap(card.width + 2 * pad, card.height + 2 * pad + foot, Bitmap.Config.ARGB_8888)
-    android.graphics.Canvas(out).apply {
-        drawColor(bg); drawBitmap(card, pad.toFloat(), pad.toFloat(), null)
-        drawFooter(ctx, this, pad.toFloat(), (pad + card.height).toFloat() + foot * 0.2f, card.width.toFloat(), foot * 0.6f)
-    }
-    val dir = File(ctx.cacheDir, "shares").apply { mkdirs() }
-    val f = File(dir, "lift-hill.png")
-    f.outputStream().use { out.compress(Bitmap.CompressFormat.PNG, 100, it) }
-    val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", f)
-    val send = Intent(Intent.ACTION_SEND).setType("image/png").putExtra(Intent.EXTRA_STREAM, uri).putExtra(Intent.EXTRA_TEXT, text)
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    send.clipData = android.content.ClipData.newRawUri(null, uri)  // lets the share sheet preview the image
-    ctx.startActivity(Intent.createChooser(send, "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-}
-
-/** App icon, "Lift Hill" and "Track your coaster credits", in a row [h] tall. */
-private fun drawFooter(ctx: Context, c: android.graphics.Canvas, x: Float, y: Float, w: Float, h: Float) {
-    val icon = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.ic_launcher_fg)
-    val bgPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF25282A.toInt() }
-    c.drawRoundRect(x, y, x + h, y + h, h * 0.22f, h * 0.22f, bgPaint)
-    icon?.setBounds((x - h * 0.25f).toInt(), (y - h * 0.25f).toInt(), (x + h * 1.25f).toInt(), (y + h * 1.25f).toInt())
-    icon?.draw(c)
-    val bold = androidx.core.content.res.ResourcesCompat.getFont(ctx, R.font.plex_sans_semibold)
-    val regular = androidx.core.content.res.ResourcesCompat.getFont(ctx, R.font.plex_sans_regular)
-    val t1 = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF25282A.toInt(); textSize = h * 0.42f; typeface = bold }
-    val t2 = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF5C5F62.toInt(); textSize = h * 0.32f; typeface = regular }
-    c.drawText("Lift Hill", x + h * 1.3f, y + h * 0.45f, t1)
-    c.drawText("Track your coaster credits", x + h * 1.3f, y + h * 0.92f, t2)
 }
 
 private val MONTH = DateTimeFormatter.ofPattern("MMM yyyy", Locale.US)

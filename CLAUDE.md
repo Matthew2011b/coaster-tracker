@@ -73,15 +73,15 @@ any of Matthew's repos rather than starting from a template.
 - Completion: Repo.log returns Milestones (data/Stats.kt milestones()) and queues them in repo.celebrations; App shows
   CelebrationDialog (Celebrate.kt): ticket = park, builder's plate = maker (steel US / brass world), blueprint = model.
   Models and makers need 2+ installations; world beats US when both finish at once; US-only users get US cards only.
-  Share renders the card to PNG via FileProvider (res/xml/file_paths.xml). The plate and blueprint colors are fixed
+  The card dialog has Share (the link) and Close; the old image share was dropped in 0.22 (FileProvider entry left
+  in the manifest, unused). The plate and blueprint colors are fixed
   artwork constants (like the logo), as are the ticket colors, the one exception to the token rule.
 - Wishlist: stars on coasters (park detail, model installations) and models (model panel), stored in prefs "wish"
   (c:<id>, m:<make|model>). Starring a model stars its installations (tracked as "a:<id>"); unstarring it removes only those. Wished parks get a
   Wish-yellow ring and a twinkling star on the map; starred models show a yellow star in Nearest but keep their
   distance order (Nearest is always nearest first). Stats has a search box (Stats.search: word-start matches).
 - Sharing: SHARE sends just the link (Share.kt ShareLinks; ids and numbers only, names come from web/public/names.json
-  because chat apps mangle "&" in links); "Share image" sends the card PNG
-  with a Lift Hill footer strip. Site = web/ on Cloudflare Workers (free plan, 10 ms CPU): build-images.mjs pre-draws a
+  because chat apps mangle "&" in links). Site = web/ on Cloudflare Workers (free plan, 10 ms CPU): build-images.mjs pre-draws a
   1200x630 JPEG for every park, model and maker (US/world) in snapshot.json; src/worker.js serves pages with og tags
   (title = the name; the card says 100% Complete) pointing at those images, falling back to generic art; the page draws the visitor's own
   card in the browser with public/card.js. .github/workflows/share.yml redraws and deploys on changes to web/ or the

@@ -256,7 +256,7 @@ class ScreenshotTest {
         dialog("34_card_park_dark")
     }
 
-    /** Share sends one line plus a link; Share image saves the card (with the Lift Hill strip) through the FileProvider. */
+    /** Share sends just the link; chat apps show the card as its preview. */
     @Test fun shareOpensTheShareSheet() {
         val ctx = ApplicationProvider.getApplicationContext<android.app.Application>()
         val theme = ThemeStore(ctx, AppTokens.all, "theme_share")
@@ -265,20 +265,13 @@ class ScreenshotTest {
         dialog("35_share_card")  // draws the card, which records it for sharing
         val shadow = org.robolectric.Shadows.shadowOf(ctx)
 
-        rule.onNodeWithText("SHARE").performClick()
-        var send = shadow.nextStartedActivity.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+        rule.onNodeWithText("Share").performClick()
+        val send = shadow.nextStartedActivity.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
         val text = send.getStringExtra(android.content.Intent.EXTRA_TEXT)!!
         assertTrue(text, text == "https://lift-hill.lifthill.workers.dev/m/bolliger-and-mabillard--wing-coaster-us?r=3&d=2026-11-09&n=42")
         assertTrue(send.type == "text/plain")
 
-        rule.onNodeWithText("Share image").performClick()
-        rule.waitForIdle(); Thread.sleep(300); rule.waitForIdle()
-        send = shadow.nextStartedActivity.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
-        assertTrue(send.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)!!.authority == "com.m2011b.coastertracker.files")
-        assertTrue(send.getStringExtra(android.content.Intent.EXTRA_TEXT)!!.startsWith("B&M Wing Coaster (US): 100% Complete https://"))
-        val f = java.io.File(ctx.cacheDir, "shares/lift-hill.png")
-        assertTrue(f.length() > 1000)
-        java.io.File("$out/41_shared_image.png").writeBytes(f.readBytes())
+        assertTrue(rule.onAllNodesWithText("Share image").fetchSemanticsNodes().isEmpty())
     }
 
     /** The app names images the same way the share site does (web/src/card.js slug()). */
