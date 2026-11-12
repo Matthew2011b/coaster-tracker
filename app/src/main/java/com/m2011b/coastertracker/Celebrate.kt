@@ -73,7 +73,7 @@ fun CelebrationDialog(m: Milestone, onClose: () -> Unit) {
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 PrimaryButton("SHARE", Modifier.weight(1f)) {
-                    scope.launch { share(ctx, { layer.toImageBitmap() }, p.bg.toArgb(), shareText(m)) }
+                    scope.launch { share(ctx, { layer.toImageBitmap() }, 0xFFDADAD7.toInt(), shareText(m)) }
                 }
                 SecondaryButton("Close", Modifier.width(110.dp), onClick = onClose)
             }
@@ -126,6 +126,16 @@ private fun StatCell(value: String, label: String, color: Color, modifier: Modif
 
 // ---------- Park: ticket stub ----------
 
+/** Fixed artwork colors: the ticket looks the same whatever the theme. */
+private object Ticket {
+    val band = Color(0xFFF0A04B)
+    val bandInk = Color(0xFF2A1A08)
+    val paper = Color(0xFFFFFFFF)
+    val ink = Color(0xFF25282A)
+    val muted = Color(0xFF6E7174)
+    val line = Color(0xFFD1D1D2)
+}
+
 /** Rounded card with a half-circle notch on each side, [fromBottom] above the bottom edge. */
 private class TicketShape(val corner: Float, val notch: Float, val fromBottom: Float) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
@@ -141,28 +151,26 @@ private class TicketShape(val corner: Float, val notch: Float, val fromBottom: F
 
 @Composable
 private fun TicketCard(m: Milestone.ParkDone) {
-    val p = LocalPalette.current
     val d = LocalDensity.current
     val stub = 70.dp
     val shape = remember(d) { with(d) { TicketShape(14.dp.toPx(), 11.dp.toPx(), stub.toPx()) } }
-    val bandInk = Mix.onColor(p.headerTrack)
-    Column(Modifier.fillMaxWidth().clip(shape).background(p.surface).semantics { contentDescription = "Park complete" }) {
-        Row(Modifier.fillMaxWidth().background(p.headerTrack).padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("PARK COMPLETE", color = bandInk, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp, modifier = Modifier.weight(1f))
-            Text("No. %04d".format(m.creditNo), color = bandInk, fontFamily = LocalKitFonts.current.mono, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+    Column(Modifier.fillMaxWidth().clip(shape).background(Ticket.paper).semantics { contentDescription = "Park complete" }) {
+        Row(Modifier.fillMaxWidth().background(Ticket.band).padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("PARK COMPLETE", color = Ticket.bandInk, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp, modifier = Modifier.weight(1f))
+            Text("No. %04d".format(m.creditNo), color = Ticket.bandInk, fontFamily = LocalKitFonts.current.mono, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
         }
         Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(m.park.name, color = p.ink, fontSize = 26.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, lineHeight = 29.sp)
-            Text("Every coaster ridden", color = p.muted, fontSize = 13.sp)
+            Text(m.park.name, color = Ticket.ink, fontSize = 26.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, lineHeight = 29.sp)
+            Text("Every coaster ridden", color = Ticket.muted, fontSize = 13.sp)
         }
         Canvas(Modifier.fillMaxWidth().height(2.dp).padding(horizontal = 14.dp)) {
-            drawLine(p.line, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 2.dp.toPx(),
+            drawLine(Ticket.line, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 2.dp.toPx(),
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())))
         }
         Row(Modifier.fillMaxWidth().height(stub - 1.dp).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            StatCell("${m.coasters}", "COASTERS", p.ink, Modifier.weight(1f))
-            StatCell("${m.models}", "MODELS", p.ink, Modifier.weight(1f))
-            StatCell("${m.year}", "FINISHED", p.ink, Modifier.weight(1f))
+            StatCell("${m.coasters}", "COASTERS", Ticket.ink, Modifier.weight(1f))
+            StatCell("${m.models}", "MODELS", Ticket.ink, Modifier.weight(1f))
+            StatCell("${m.year}", "FINISHED", Ticket.ink, Modifier.weight(1f))
         }
     }
 }
@@ -235,7 +243,7 @@ private object Blueprint {
 private fun BlueprintCard(m: Milestone.ModelDone) {
     val p = LocalPalette.current
     val mono = LocalKitFonts.current.mono
-    val stamp = if (m.world) p[AppTokens.Wish] else p.headerTrack
+    val stamp = if (m.world) Color(0xFFFFC93C) else Color(0xFFF0A04B)  // fixed, like the rest of the card
     val shape = RoundedCornerShape(6.dp)
     Box(
         Modifier.fillMaxWidth().shadow(8.dp, shape).clip(shape).background(if (m.world) Blueprint.paperWorld else Blueprint.paperUs)

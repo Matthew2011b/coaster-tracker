@@ -74,7 +74,7 @@ any of Matthew's repos rather than starting from a template.
   CelebrationDialog (Celebrate.kt): ticket = park, builder's plate = maker (steel US / brass world), blueprint = model.
   Models and makers need 2+ installations; world beats US when both finish at once; US-only users get US cards only.
   Share renders the card to PNG via FileProvider (res/xml/file_paths.xml). The plate and blueprint colors are fixed
-  artwork constants (like the logo), the one exception to the token rule.
+  artwork constants (like the logo), as are the ticket colors, the one exception to the token rule.
 - Wishlist: stars on coasters (park detail, model installations) and models (model panel), stored in prefs "wish"
   (c:<id>, m:<make|model>). Wished parks get a Wish-yellow ring and a twinkling star on the map; starred models sort
   first in Nearest.
