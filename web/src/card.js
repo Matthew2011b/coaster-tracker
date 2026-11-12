@@ -70,33 +70,40 @@ const stat = (x, y, v, label, ink, sub, size = 60, shadow = "") =>
   `<text x="${x}" y="${y}" font-family="${MONO}" font-size="${size}" font-weight="600" fill="${ink}" text-anchor="middle">${esc(v)}</text>
    <text x="${x}" y="${y + size * 0.45}" font-family="${SANS}" font-size="${size * 0.33}" fill="${sub}" text-anchor="middle" letter-spacing="${size * 0.04}">${esc(label)}</text>`;
 
+/** The "100% / COMPLETE" block used on pre-drawn cards in place of personal stats. */
+const hundred = (x, cy, ink, sub, shadow = "") =>
+  (shadow ? `<text x="${x}" y="${cy + 22}" font-family="${MONO}" font-size="96" font-weight="600" fill="${shadow}" text-anchor="middle">100%</text>` : "") +
+  `<text x="${x}" y="${cy + 20}" font-family="${MONO}" font-size="96" font-weight="600" fill="${ink}" text-anchor="middle">100%</text>
+   <text x="${x}" y="${cy + 66}" font-family="${SANS}" font-size="26" fill="${sub}" text-anchor="middle" letter-spacing="5">COMPLETE</text>`;
+
 /** Park: ticket stub. */
-export function park({ name, coasters, models, year, no }) {
+export function park({ name, coasters, models, year, no, generic = false, sub = true }) {
   const R = W - E, band = 112, stub = 340, div = R - stub, top = E + band;
   const nm = fit(name, div - E - 100, 100, 54);
   const nameH = nm.size * 1.08 * nm.lines.length;
   const cy = (top + H - E) / 2;
-  const nameY = cy - (nameH + 46) / 2 + nm.size * 0.82;
+  const nameY = cy - (nameH + (sub ? 46 : 0)) / 2 + nm.size * 0.82;
   const subY = nameY + (nm.lines.length - 1) * nm.size * 1.08 + 54;
   const sy = [cy - 150, cy - 10, cy + 130];
   const inner = `<rect x="0" y="0" width="${W}" height="${H}" fill="#fff"/>
     <rect x="0" y="0" width="${W}" height="${top}" fill="#F0A04B"/>
     <text x="${E + 48}" y="${E + 67}" font-family="${SANS}" font-size="32" font-weight="600" fill="#2A1A08" letter-spacing="5.8">PARK COMPLETE</text>
     ${mark({ right: R - 48, y: E + 67, size: 28, color: "#2A1A08" })}
-    <text x="${R - 48 - width("Lift Hill", 28) - 11 - 42 - 28}" y="${E + 67}" font-family="${MONO}" font-size="32" font-weight="600" fill="#2A1A08" text-anchor="end">No. ${esc(String(no).padStart(4, "0"))}</text>
+    ${generic ? "" : `<text x="${R - 48 - width("Lift Hill", 28) - 11 - 42 - 28}" y="${E + 67}" font-family="${MONO}" font-size="32" font-weight="600" fill="#2A1A08" text-anchor="end">No. ${esc(String(no).padStart(4, "0"))}</text>`}
     ${textLines(nm, E + 56, nameY, { size: nm.size, fill: "#25282A" })}
-    <text x="${E + 56}" y="${subY}" font-family="${SANS}" font-size="38" fill="#6E7174">Every coaster ridden</text>
+    ${sub ? `<text x="${E + 56}" y="${subY + 10}" font-family="${SANS}" font-size="38" fill="#6E7174">Every coaster ridden</text>` : ""}
     <line x1="${div}" y1="${top + 28}" x2="${div}" y2="${H - E - 28}" stroke="#C9C9CA" stroke-width="5" stroke-dasharray="14 9"/>
+    ${generic ? hundred(div + stub / 2, cy, "#25282A", "#6E7174") : `
     ${stat(div + stub / 2, sy[0] + 20, coasters, "COASTERS", "#25282A", "#6E7174")}
     ${stat(div + stub / 2, sy[1] + 20, models, "MODELS", "#25282A", "#6E7174")}
-    ${stat(div + stub / 2, sy[2] + 20, year, "FINISHED", "#25282A", "#6E7174")}
+    ${stat(div + stub / 2, sy[2] + 20, year, "FINISHED", "#25282A", "#6E7174")}`}
     <rect x="0" y="0" width="${W}" height="${H}" filter="url(#paper)" opacity=".45" style="mix-blend-mode:multiply"/>`;
   const notch = (y) => `<circle cx="${div}" cy="${y}" r="22" fill="#141617"/>`;
   return frame(inner, 28).replace("</svg>", `${notch(E)}${notch(H - E)}</svg>`);
 }
 
 /** Manufacturer: riveted builder's plate. */
-export function maker({ make, world, coasters, models, places, no, date }) {
+export function maker({ make, world, coasters, models, places, no, date, generic = false }) {
   const stops = world ? ["#F1D89A", "#C9A24E", "#E6C77E", "#A88434"] : ["#E4E7EA", "#AEB4BA", "#D3D7DB", "#8E959C"];
   const ink = world ? "#4A3510" : "#2B3036", hi = world ? "rgba(255,248,220,.6)" : "rgba(255,255,255,.6)";
   const R = W - E, B = H - E, col = R - 80 - 280, lx = E + 80;
@@ -109,8 +116,9 @@ export function maker({ make, world, coasters, models, places, no, date }) {
   y += 26 + 20 + nm.size * 0.82;
   const nameT = nm.lines.map((l, i) => engr(l, lx, y + i * nm.size * 1.08, nm.size)).join("");
   y += (nm.lines.length - 1) * nm.size * 1.08 + 46;
-  const month = new Date(date + "T12:00:00Z").toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).toUpperCase();
-  const serial = `<text x="${lx}" y="${y}" font-family="${MONO}" font-size="24" font-weight="600" fill="${ink}" opacity=".8" letter-spacing="2.5">SERIAL LH-${esc(String(no).padStart(4, "0"))} · ${esc(month)}</text>`;
+  const month = generic ? "" : new Date(date + "T12:00:00Z").toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).toUpperCase();
+  if (generic) y -= 46;
+  const serial = generic ? "" : `<text x="${lx}" y="${y}" font-family="${MONO}" font-size="24" font-weight="600" fill="${ink}" opacity=".8" letter-spacing="2.5">SERIAL LH-${esc(String(no).padStart(4, "0"))} · ${esc(month)}</text>`;
   const m = mark({ left: lx, y: y + 58, size: 28, color: ink });
   const rivet = (cx, cy) => `<circle cx="${cx}" cy="${cy}" r="12" fill="url(#rv)"/>`;
   const cyc = (E + B) / 2, sx = R - 80 - 140;
@@ -122,14 +130,15 @@ export function maker({ make, world, coasters, models, places, no, date }) {
     ${rivet(E + 36, E + 36)}${rivet(R - 36, E + 36)}${rivet(E + 36, B - 36)}${rivet(R - 36, B - 36)}
     ${kicker}${nameT}${serial}${m}
     <line x1="${col}" y1="${cyc - 170}" x2="${col}" y2="${cyc + 170}" stroke="${ink}" stroke-opacity=".25" stroke-width="3"/>
+    ${generic ? hundred(sx, cyc - 20, ink, ink, hi) : `
     ${stat(sx, cyc - 110, coasters, "COASTERS", ink, ink, 60, hi)}
     ${stat(sx, cyc + 20, models, "MODELS", ink, ink, 60, hi)}
-    ${stat(sx, cyc + 150, places, world ? "COUNTRIES" : "PARKS", ink, ink, 60, hi)}`;
+    ${stat(sx, cyc + 150, places, world ? "COUNTRIES" : "PARKS", ink, ink, 60, hi)}`}`;
   return frame(inner, 16);
 }
 
 /** Model: blueprint with title block and a COMPLETE stamp. */
-export function model({ make, model: md, world, count, no, date }) {
+export function model({ make, model: md, world, count, no, date, generic = false }) {
   const paper = world ? "#0F2E55" : "#163F73", stamp = world ? "#FFC93C" : "#F0A04B";
   const L = E + 28, T = E + 28, R = W - E - 28, B = H - E - 28, iw = R - L;
   let grid = "";
@@ -140,9 +149,11 @@ export function model({ make, model: md, world, count, no, date }) {
   const titleY = T + 24 + nm.size * 0.82;
   const byY = titleY + (nm.lines.length - 1) * nm.size * 1.06 + 46;
   const k = iw / 390, trackTop = 248;
-  const cellsTop = B - 84, cw = iw / 4;
-  const cells = [["SCOPE", world ? "WORLDWIDE" : "UNITED STATES"], ["QTY RIDDEN", `${count} OF ${count}`], ["DATE", date], ["DWG NO.", `LH-${String(no).padStart(4, "0")}`]]
-    .map(([a, b], i) => `<rect x="${L + i * cw}" y="${cellsTop}" width="${cw}" height="84" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  const cellsTop = B - 84;
+  const list = generic ? [["SCOPE", world ? "WORLDWIDE" : "UNITED STATES"], ["QTY RIDDEN", "ALL"], ["STATUS", "COMPLETE"]]
+    : [["SCOPE", world ? "WORLDWIDE" : "UNITED STATES"], ["QTY RIDDEN", `${count} OF ${count}`], ["DATE", date], ["DWG NO.", `LH-${String(no).padStart(4, "0")}`]];
+  const cw = iw / list.length;
+  const cells = list.map(([a, b], i) => `<rect x="${L + i * cw}" y="${cellsTop}" width="${cw}" height="84" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
       <text x="${L + i * cw + 16}" y="${cellsTop + 28}" font-family="${SANS}" font-size="18" fill="#fff" fill-opacity=".7" letter-spacing="2.2">${a}</text>
       <text x="${L + i * cw + 16}" y="${cellsTop + 66}" font-family="${MONO}" font-size="30" font-weight="600" fill="#fff">${esc(b)}</text>`).join("");
   const sx = R - 32 - sw, sy = T + 34;
@@ -150,10 +161,15 @@ export function model({ make, model: md, world, count, no, date }) {
     <rect x="0" y="0" width="${W}" height="${H}" filter="url(#paper)" opacity=".3" style="mix-blend-mode:multiply"/>
     <rect x="${L}" y="${T}" width="${iw}" height="${B - T}" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="3"/>
     ${textLines(nm, L + 32, titleY, { size: nm.size, fill: "#fff", lh: 1.06 })}
-    <text x="${L + 32}" y="${byY}" font-family="${SANS}" font-size="34" fill="#fff">By ${esc(make)}</text>
+    ${make ? `<text x="${L + 32}" y="${byY}" font-family="${SANS}" font-size="34" fill="#fff">By ${esc(make)}</text>` : ""}
     <g transform="rotate(-8 ${sx + sw / 2} ${sy + 30})"><rect x="${sx}" y="${sy}" width="${sw}" height="60" rx="10" fill="none" stroke="${stamp}" stroke-width="6"/>
       <text x="${sx + sw / 2}" y="${sy + 42}" font-family="${SANS}" font-size="34" font-weight="600" fill="${stamp}" text-anchor="middle" letter-spacing="4">${st}</text></g>
     <path d="${TRACK}" transform="translate(${L} ${trackTop}) scale(${k})" fill="none" stroke="#fff" stroke-width="${3 / k}" stroke-linecap="round" stroke-linejoin="round"/>
     ${cells}`;
   return frame(inner, 12);
+}
+
+/** URL-safe name used for image files; the app builds the same one (Share.kt slug()). */
+export function slug(s) {
+  return String(s).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "x";
 }

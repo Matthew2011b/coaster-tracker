@@ -1,0 +1,36 @@
+# Share links: pre-draws a preview card for every park, model and manufacturer, then deploys the
+# share pages and images to Cloudflare Workers (free plan: static files plus a tiny page script).
+name: share-site
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", "app/src/main/assets/snapshot.json", ".github/workflows/share.yml"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci
+      - name: Draw the preview cards
+        run: node build-images.mjs
+      - name: Deploy to Cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler deploy 2>&1 | tee deploy.log
+          url=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          echo "Share site: $url" >> "$GITHUB_STEP_SUMMARY"
+          echo "SHARE_URL=$url"
+      - name: Check a page and an image
+        run: |
+          url=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          sleep 10
+          curl -fsS "$url/p/1?n=Test" | grep -q 'og:image'
+          curl -fsSI "$url/img/fallback-park.jpg" | head -1
