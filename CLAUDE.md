@@ -11,7 +11,7 @@ any of Matthew's repos rather than starting from a template.
   Look at them after every UI change, and show them to Matthew before handing over an APK.
   Add a screenshot test per real screen, plus a 360x640 small-phone check.
 - `./gradlew assembleRelease`: APK. Unsigned without the key (see Signing).
-- CI (`.github/workflows/build.yml`): every push to main tests, builds, signs and uploads the APK.
+- CI (`.github/workflows/build.yml`): every push to main tests, builds, signs and uploads the APK and the AAB (for Google Play).
   Tag `vX.Y` to publish a GitHub Release with the APK attached. Tag every version handed over.
 - Bump `versionCode` and `versionName` in `app/build.gradle.kts` for every build that goes to a phone.
 

@@ -1,6 +1,6 @@
 name: Build
 
-# Every push to main: run tests, build a signed APK, attach it to the run.
+# Every push to main: run tests, build a signed APK (sideloading) and AAB (Google Play), attach both to the run.
 # Pushing a tag like v1.5: same, plus a GitHub Release with the APK attached.
 on:
   push:
@@ -52,7 +52,7 @@ jobs:
           APP_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           APP_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           APP_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease bundleRelease --no-daemon
 
       - name: Check signing certificate
         if: steps.key.outputs.signed == 'true'
@@ -77,11 +77,18 @@ jobs:
           NAME="$APP-$VERSION$SUFFIX.apk"
           cp app/build/outputs/apk/release/app-release*.apk "$NAME"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          cp app/build/outputs/bundle/release/app-release.aab "${NAME%.apk}.aab"
+          echo "aab=${NAME%.apk}.aab" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.apk.outputs.name }}
           path: ${{ steps.apk.outputs.name }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.aab }}
+          path: ${{ steps.apk.outputs.aab }}
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -94,5 +101,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') && steps.key.outputs.signed == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.apk.outputs.name }}
+          files: |
+            ${{ steps.apk.outputs.name }}
+            ${{ steps.apk.outputs.aab }}
           generate_release_notes: true
