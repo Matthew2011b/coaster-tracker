@@ -4,6 +4,8 @@
 // Each page gives chat apps a preview (title, line, pre-drawn card from public/img) and shows people who
 // open it their own card, drawn in the browser.
 
+import { privacyPage } from "./privacy.js";
+
 const PLAY = null;  // the Play Store link, once the app is published
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const num = (v, max = 99999) => Math.max(0, Math.min(max, parseInt(v, 10) || 0));
@@ -78,6 +80,7 @@ p{margin:0;color:#B9BCBE;font-size:16px;line-height:1.5;max-width:520px}
 ${c ? `<h1 style="margin:0;font-size:22px">${esc(c.title)}</h1>` : ""}
 <p>Track every coaster you ride by manufacturer and model, see what you've completed, and find the nearest models you've never ridden.</p>
 ${PLAY ? `<a class="btn" href="${PLAY}">Get it on Google Play</a>` : `<span class="btn off">Coming soon to Google Play</span>`}
+<a href="/privacy" style="color:#8E9395;font-size:13px">Privacy Policy</a>
 </main>
 ${c ? `<script type="module">
 import * as C from "/card.js";
@@ -90,6 +93,8 @@ document.fonts.ready.then(() => { document.getElementById("card").innerHTML = sv
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
+    if (url.pathname === "/privacy" || url.pathname === "/privacy/")
+      return new Response(privacyPage(), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=3600" } });
     const c = card(url, await names(env, url.origin));
     let img = null;
     if (c) for (const path of c.img) {

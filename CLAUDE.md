@@ -87,6 +87,7 @@ any of Matthew's repos rather than starting from a template.
   card in the browser with public/card.js. .github/workflows/share.yml redraws and deploys on changes to web/ or the
   snapshot (secrets CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID). Site: https://lift-hill.lifthill.workers.dev.
   ShareLinks.slug() must match slug() in web/src/card.js. Set PLAY in worker.js once the app is on the Play Store.
+  Privacy policy (Play listing link): /privacy, from web/src/privacy.js. Update it when the app sends anything new off the phone.
 - Settings: two rows open Colors & Theme (ColorsScreen: presets, Custom = ThemeEditorScreen, System/Light/Dark) and
   Backup & Data (BackupScreen.kt); then the filter toggles and the Coasterpedia key panel (key and Update data on one row,
   "Get a free key" left, data date right). Tuned to fit one screen on Matthew's phone (ScreenshotTest.settingsOnPhone).
