@@ -16,14 +16,14 @@ fun keyValue(env: String, prop: String): String? =
 
 android {
     namespace = "com.m2011b.coastertracker"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.m2011b.coastertracker"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 22
-        versionName = "0.22"
+        targetSdk = 36
+        versionCode = 23
+        versionName = "0.23"
     }
 
     // Signing. The key is NEVER committed. It comes from (first match wins):
